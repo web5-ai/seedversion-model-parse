@@ -34,6 +34,62 @@ class ModelLoader:
         # 加载模型
         self._load_model()
         
+    def _analyze_model(self):
+        """
+        分析模型结构并生成详细报告
+        """
+        model_info = []
+        model_info.append("=== 模型详细信息报告 ===\n")
+        
+        # 基础信息
+        model_info.append("1. 基础信息:")
+        model_info.append(f"- 模型文件: {self.model_path}")
+        model_info.append(f"- 模型类型: {self.model.__class__.__name__}")
+        model_info.append(f"- 模型大小: {os.path.getsize(self.model_path) / (1024*1024):.2f} MB")
+        
+        # 结构信息
+        model_info.append("\n2. 结构信息:")
+        total_params = sum(p.numel() for p in self.model.parameters())
+        trainable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+        model_info.append(f"- 总参数量: {total_params:,}")
+        model_info.append(f"- 可训练参数量: {trainable_params:,}")
+        
+        # 层信息
+        model_info.append("\n3. 主要层信息:")
+        for name, module in self.model.named_children():
+            params = sum(p.numel() for p in module.parameters())
+            model_info.append(f"- {name}: {module.__class__.__name__}")
+            model_info.append(f"  参数量: {params:,}")
+        
+        # 输入输出信息
+        model_info.append("\n4. 输入输出信息:")
+        model_info.append("- 输入尺寸: (224, 224)")
+        model_info.append("- 输入通道: 3 (RGB)")
+        if hasattr(self.model, 'fc'):
+            if isinstance(self.model.fc, nn.Sequential):
+                model_info.append(f"- 输出维度: {self.model.fc[0].out_features}")
+            else:
+                model_info.append(f"- 输出维度: {self.model.fc.out_features}")
+        
+        # 预处理信息
+        model_info.append("\n5. 预处理信息:")
+        model_info.append("- 图像缩放: 224x224")
+        model_info.append("- 归一化参数:")
+        model_info.append("  均值: [0.485, 0.456, 0.406]")
+        model_info.append("  标准差: [0.229, 0.224, 0.225]")
+        
+        # 保存信息到文件
+        model_dir = os.path.dirname(self.model_path)
+        info_path = os.path.join(model_dir, "model_info.txt")
+        try:
+            with open(info_path, 'w', encoding='utf-8') as f:
+                f.write('\n'.join(model_info))
+            self.logger.info(f"模型详细信息已保存至: {info_path}")
+        except Exception as e:
+            self.logger.error(f"保存模型信息失败: {str(e)}")
+        
+        return '\n'.join(model_info)
+    
     def _load_model(self):
         """
         加载预训练模型
@@ -44,89 +100,64 @@ class ModelLoader:
         self.logger.info(f"正在加载模型: {self.model_path}")
         
         try:
-            # 尝试直接加载模型
-            self.model = torch.jit.load(self.model_path)
-            self.logger.info("成功加载TorchScript模型")
+            # 首先尝试直接加载PyTorch模型
+            state_dict = torch.load(self.model_path, map_location='cpu')
+            
+            # 根据状态字典推断模型结构
+            if isinstance(state_dict, dict):
+                if 'model' in state_dict:
+                    state_dict = state_dict['model']
+                elif 'state_dict' in state_dict:
+                    state_dict = state_dict['state_dict']
+            
+            # 创建模型实例
+            from torchvision.models import resnet50, vgg16, efficientnet_b0
+            
+            # 尝试不同的模型架构
+            model_candidates = [
+                ('ResNet50', resnet50(pretrained=False)),
+                ('VGG16', vgg16(pretrained=False)),
+                ('EfficientNet', efficientnet_b0(pretrained=False))
+            ]
+            
+            for model_name, model_instance in model_candidates:
+                try:
+                    # 修改最后一层以适应输出维度
+                    if 'fc.weight' in state_dict:
+                        out_features = state_dict['fc.weight'].shape[0]
+                        if hasattr(model_instance, 'fc'):
+                            in_features = model_instance.fc.in_features
+                            model_instance.fc = nn.Linear(in_features, out_features)
+                        elif hasattr(model_instance, 'classifier'):
+                            if isinstance(model_instance.classifier, nn.Sequential):
+                                in_features = model_instance.classifier[-1].in_features
+                                model_instance.classifier[-1] = nn.Linear(in_features, out_features)
+                            else:
+                                in_features = model_instance.classifier.in_features
+                                model_instance.classifier = nn.Linear(in_features, out_features)
+                    
+                    # 尝试加载状态字典
+                    model_instance.load_state_dict(state_dict, strict=False)
+                    self.model = model_instance
+                    self.logger.info(f"成功加载{model_name}模型")
+                    break
+                except Exception as e:
+                    self.logger.warning(f"加载{model_name}模型失败: {str(e)}")
+            
+            if self.model is None:
+                raise ValueError("无法加载模型，请检查模型文件格式或提供模型架构信息")
+            
+            # 设置为评估模式
+            self.model.eval()
+            self.logger.info("模型加载完成，已设置为评估模式")
+            
+            # 分析并保存模型信息
+            model_info = self._analyze_model()
+            self.logger.info("\n" + model_info)
+            
         except Exception as e:
-            self.logger.warning(f"加载TorchScript模型失败: {str(e)}")
-            try:
-                # 尝试加载状态字典
-                state_dict = torch.load(self.model_path, map_location='cpu')
-                
-                # 根据状态字典推断模型结构
-                if isinstance(state_dict, dict):
-                    if 'model' in state_dict:
-                        state_dict = state_dict['model']
-                    elif 'state_dict' in state_dict:
-                        state_dict = state_dict['state_dict']
-                
-                # 创建模型实例
-                from torchvision.models import resnet50, vgg16, efficientnet_b0
-                
-                # 尝试不同的模型架构
-                model_candidates = [
-                    ('ResNet50', resnet50(pretrained=False)),
-                    ('VGG16', vgg16(pretrained=False)),
-                    ('EfficientNet', efficientnet_b0(pretrained=False))
-                ]
-                
-                for model_name, model_instance in model_candidates:
-                    try:
-                        # 修改最后一层以适应输出维度
-                        if 'fc.weight' in state_dict:
-                            out_features = state_dict['fc.weight'].shape[0]
-                            if hasattr(model_instance, 'fc'):
-                                in_features = model_instance.fc.in_features
-                                model_instance.fc = nn.Linear(in_features, out_features)
-                            elif hasattr(model_instance, 'classifier'):
-                                if isinstance(model_instance.classifier, nn.Sequential):
-                                    in_features = model_instance.classifier[-1].in_features
-                                    model_instance.classifier[-1] = nn.Linear(in_features, out_features)
-                                else:
-                                    in_features = model_instance.classifier.in_features
-                                    model_instance.classifier = nn.Linear(in_features, out_features)
-                        
-                        # 尝试加载状态字典
-                        model_instance.load_state_dict(state_dict, strict=False)
-                        self.model = model_instance
-                        self.logger.info(f"成功加载{model_name}模型")
-                        break
-                    except Exception as e:
-                        self.logger.warning(f"加载{model_name}模型失败: {str(e)}")
-                
-                if self.model is None:
-                    raise ValueError("无法加载模型，请检查模型文件格式或提供模型架构信息")
-                
-            except Exception as e:
-                self.logger.error(f"加载模型失败: {str(e)}")
-                raise
-        
-        # 在_load_model方法中，修改检查输出层的部分
-        
-        # 检查是否需要修改输出层
-        if hasattr(self.model, 'fc') and self.model.fc.out_features == 1000:
-            self.logger.info("检测到ImageNet预训练模型，添加适配层将1000维输出转换为5维")
-            in_features = self.model.fc.in_features
-            
-            # 使用固定的初始化方法
-            torch.manual_seed(42)  # 设置随机种子
-            
-            # 创建一个包含线性层和激活函数的新输出层
-            self.model.fc = nn.Sequential(
-                nn.Linear(in_features, 5),
-                nn.ReLU()  # 确保输出非负
-            )
-            
-            # 使用正态分布初始化权重，使用小的标准差
-            nn.init.normal_(self.model.fc[0].weight, mean=0.0, std=0.01)
-            # 使用常数初始化偏置，每个成分设置不同的初始值
-            self.model.fc[0].bias.data = torch.tensor([0.1, 0.2, 0.3, 0.4, 0.5])
-            
-            self.logger.info(f"已将输出层从{in_features}x1000修改为{in_features}x5，并添加ReLU确保非负输出")
-        
-        # 设置为评估模式
-        self.model.eval()
-        self.logger.info("模型加载完成，已设置为评估模式")
+            self.logger.error(f"加载模型失败: {str(e)}")
+            raise
     
     def preprocess_image(self, image):
         """

@@ -1,26 +1,36 @@
-import os
+"""
+配置文件，存储所有可配置参数
+"""
 
-# 项目根目录
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# 模型配置
+# 模型相关配置
 MODEL_CONFIG = {
-    'model_path': 'res/vanillanet.pt',  # 模型路径
-    'image_size': 224,  # 图像大小
-    'num_classes': 5,  # 输出类别数量
-    'component_names': ["油酸", "亚油酸", "亚麻酸", "棕榈酸", "硬脂酸"]  # 成分名称
+    "model_path": "weights/fasternet_model.pt",
+    "expected_components": 5,
+    "component_names": ["油酸", "亚油酸", "亚麻酸", "棕榈酸", "硬脂酸"],
+    "quality_thresholds": {
+        "油酸": 0.5,  # 油酸含量高于0.5为优质
+        "亚油酸": 0.3  # 亚油酸含量高于0.3为营养价值高
+    }
 }
 
-# 日志配置
-LOG_CONFIG = {
-    'log_dir': 'logs',  # 日志目录
-    'log_level': 'INFO',  # 日志级别
-    'log_format': '%(asctime)s - %(name)s - %(levelname)s - %(message)s'  # 日志格式
+# 图像处理配置
+IMAGE_CONFIG = {
+    "default_image_path": "tests/test_images/image_custom.png",
+    "resize_dimensions": (224, 224),
+    "normalize_mean": [0.485, 0.456, 0.406],
+    "normalize_std": [0.229, 0.224, 0.225]
 }
 
 # 输出配置
 OUTPUT_CONFIG = {
-    'result_dir': 'results',  # 结果目录
-    'csv_file': 'results/prediction_results.csv',  # CSV文件
-    'image_file': 'results/prediction_result.png'  # 图像文件
+    "default_output_path": "results/prediction_result.png",
+    "chart_title": "油菜籽成分含量预测",
+    "chart_size": (10, 6)
+}
+
+# 系统配置
+SYSTEM_CONFIG = {
+    "default_seed": 42,
+    "log_level": "INFO",
+    "log_format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 }
