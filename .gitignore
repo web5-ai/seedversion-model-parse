@@ -1,0 +1,64 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+res/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 虚拟环境
+venv/
+env/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# 日志文件
+*.log
+logs/
+
+# 模型文件和数据
+*.pt
+*.pth
+*.h5
+*.onnx
+*.tflite
+*.pb
+data/
+weights/
+checkpoints/
+
+# 测试相关
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# 本地配置
+.env
+.env.local
+config.local.py
+
+# 其他
+.directory
+.Trash-*
