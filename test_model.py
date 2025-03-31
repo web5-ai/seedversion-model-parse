@@ -133,8 +133,8 @@ def predict(model, image_tensor, device='cpu'):
         预测结果
     """
     try:
-        with torch.no_grad():
-            image_tensor = image_tensor.to(device)
+        with torch.no_grad(): # 禁用梯度计算以节省内存和计算
+            image_tensor = image_tensor.to(device) # 将图像移动到指定设备
             output = model(image_tensor)
             return output
     except Exception as e:
