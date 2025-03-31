@@ -141,7 +141,7 @@ def predict(model, image_tensor, device='cpu'):
         logger.error(f"预测失败: {str(e)}")
         return None
 
-def generate_text_report(output_np, components, save_path=None):
+def generate_text_report(output_np, components, save_path=None, model_name=None):
     """
     生成文本报告
     
@@ -149,6 +149,7 @@ def generate_text_report(output_np, components, save_path=None):
         output_np: 模型输出的numpy数组
         components: 成分名称列表
         save_path: 保存路径
+        model_name: 模型文件名
     """
     # 找出含量最高的成分
     max_index = np.argmax(output_np)
@@ -174,7 +175,7 @@ def generate_text_report(output_np, components, save_path=None):
     
     # 添加详细的文字结论
     logger.info("\n预测结论:")
-    
+    logger.info(f'\n预测模型: {model_name if model_name else "未知模型"}')
     # 输出结论
     logger.info(f"1. 该油菜籽样本中含量最高的成分是 {max_component}，含量为 {max_value:.4f}")
     logger.info(f"2. 含量最低的成分是 {min_component}，含量为 {min_value:.4f}")
@@ -218,7 +219,7 @@ def generate_text_report(output_np, components, save_path=None):
         try:
             with open(txt_path, 'w', encoding='utf-8') as f:
                 f.write("=== 油菜籽成分含量预测报告 ===\n\n")
-                
+                f.write(f"预测模型: {model_name if model_name else '未知模型'}\n")
                 f.write("成分含量预测结果:\n")
                 for i, comp in enumerate(components):
                     f.write(f"{comp}: {output_np[i]:.4f}\n")
@@ -289,7 +290,7 @@ def save_chart(output_np, components, save_path):
     plt.close()  # 关闭图表而不显示
     logger.info(f"图表已保存至: {save_path}")
 
-def visualize_results(output, class_names=None, save_path=None):
+def visualize_results(output, class_names=None, save_path=None, model_name = None):
     """
     可视化预测结果
     
@@ -297,6 +298,7 @@ def visualize_results(output, class_names=None, save_path=None):
         output: 模型输出
         class_names: 类别名称列表（如果是分类任务）
         save_path: 保存路径
+        model_name: 模型文件名
     """
     # 将输出转换为numpy数组
     output_np = output.cpu().numpy().flatten()
@@ -316,7 +318,7 @@ def visualize_results(output, class_names=None, save_path=None):
         logger.info("仅生成文本报告，不生成图表")
     
     # 生成文本报告
-    return generate_text_report(output_np, components, save_path)
+    return generate_text_report(output_np, components, save_path, model_name=model_name)
 
 def parse_arguments():
     """
@@ -333,6 +335,96 @@ def parse_arguments():
     parser.add_argument('--no-chart', action='store_true', help='不生成图表，只输出文本报告')
     parser.add_argument('--check-env', action='store_true', help='检查环境并安装依赖')
     return parser.parse_args()
+
+def auto_model_test():
+    '''
+    从main()复制过来改了一下
+    使用自动化参数测试weights下的所有模型
+    '''
+
+    # 读取weights文件夹下的所有模型
+    model_paths = [os.path.join('weights', f) for f in os.listdir('weights') if f.endswith('.pt')]
+    logger.info("发现{}个模型文件：\n{}".format(len(model_paths), '\n'.join(model_paths))) # 这里输出模型路径列表
+
+    # model_paths = [
+    #     'weights/fasternet_model.pt',
+    #     'weights/ResNet18_base.pt',
+    #     'weights/swin.pt',
+    #     'weights/vanillanet.pt',
+    #     'weights/mpvit.pt',
+    #     'weights/efficientnet.pt'
+    # ]
+
+    for model_path in model_paths:
+        args = parse_arguments()
+
+        # if args.check_env:
+        #     logger.info("正在检查环境...")
+        #     if not check_dependencies() or not setup_environment():
+        #         logger.error("环境检查失败，请解决上述问题后重试")
+        #         return
+        #     logger.info("环境检查通过!")
+        #     return
+        
+        # 设置随机种子
+        set_seed(args.seed)
+        
+        # 设置模型路径和测试图像路径
+        # model_path = args.model
+        test_image_path = args.image
+        
+        # 默认不生成图表和文本文件，只在终端输出文本报告
+        output_path = None
+        args.no_chart = True  # 强制设置为不生成图表
+        
+        # 输出运行模式信息
+        logger.info("运行模式: 仅文本报告，不生成图表")
+        
+        # 检查文件是否存在
+        if not os.path.exists(model_path):
+            logger.error(f"错误: 模型文件不存在: {model_path}")
+            logger.info(f"请确保模型文件位于正确位置，或使用 --model 参数指定正确的路径")
+            return
+        
+        if not os.path.exists(test_image_path):
+            logger.error(f"错误: 测试图像不存在: {test_image_path}")
+            logger.info(f"请确保测试图像位于正确位置，或使用 --image 参数指定正确的路径")
+            return
+        
+        # 加载模型
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        logger.info(f"使用设备: {device}")
+        model, model_loader = load_model(model_path, device)
+        
+        if model is None:
+            return
+        
+        # 打印模型结构
+        logger.info("\n模型结构:")
+        logger.info(str(model))
+        
+        # 预处理图像
+        image_tensor = preprocess_image(test_image_path, model_loader)
+        
+        if image_tensor is None:
+            return
+        
+        # 进行预测
+        output = predict(model, image_tensor, device)
+        
+        if output is None:
+            return
+        
+        # 显示预测结果
+        logger.info("\n预测结果:")
+        logger.info(f"输出张量形状: {output.shape}")
+        logger.info(f"输出值: {output.cpu().numpy()}")
+        
+        # 可视化结果
+        component_names = MODEL_CONFIG["component_names"][:output.shape[1]]
+        visualize_results(output, component_names, output_path, model_name=os.path.basename(model_path))
+        
+        logger.info("\n测试完成!")
 
 def main():
     # 解析命令行参数
@@ -408,4 +500,5 @@ def main():
     logger.info("\n测试完成!")
 
 if __name__ == "__main__":
-    main()
+    auto_model_test()
+    # main()

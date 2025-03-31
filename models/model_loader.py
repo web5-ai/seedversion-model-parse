@@ -78,9 +78,11 @@ class ModelLoader:
         model_info.append("  均值: [0.485, 0.456, 0.406]")
         model_info.append("  标准差: [0.229, 0.224, 0.225]")
         
-        # 保存信息到文件
+        # 保存信息到文件，不同的模型会进行标识
         model_dir = os.path.dirname(self.model_path)
-        info_path = os.path.join(model_dir, "model_info.txt")
+        # info_path = os.path.join(model_dir, "model_info.txt")
+        model_name = os.path.splitext(os.path.basename(self.model_path))[0]
+        info_path = os.path.join(model_dir, f"{model_name}_info.txt")
         try:
             with open(info_path, 'w', encoding='utf-8') as f:
                 f.write('\n'.join(model_info))
