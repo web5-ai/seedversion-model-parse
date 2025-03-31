@@ -415,10 +415,10 @@ def auto_model_test():
         if output is None:
             return
         
-        # 显示预测结果
-        logger.info("\n预测结果:")
-        logger.info(f"输出张量形状: {output.shape}")
-        logger.info(f"输出值: {output.cpu().numpy()}")
+        # # 显示预测结果
+        # logger.info("\n预测结果:")
+        # logger.info(f"输出张量形状: {output.shape}")
+        # logger.info(f"输出值: {output.cpu().numpy()}")
         
         # 可视化结果
         component_names = MODEL_CONFIG["component_names"][:output.shape[1]]
