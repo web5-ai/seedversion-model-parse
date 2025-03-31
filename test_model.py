@@ -65,8 +65,8 @@ def set_seed(seed=None):
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True # 固定卷积算法以提高性能
+    torch.backends.cudnn.benchmark = False # 关闭动态卷积算法
     logger.info(f"已设置随机种子: {seed}")
 
 def load_model(model_path, device='cpu'):
@@ -83,6 +83,7 @@ def load_model(model_path, device='cpu'):
     try:
         # 使用ModelLoader加载模型
         model_loader = ModelLoader(model_path, debug=True)
+        model_loader._load_model(model_name='ResNet')
         model = model_loader.model
         model.to(device)
         model.eval()
@@ -500,5 +501,5 @@ def main():
     logger.info("\n测试完成!")
 
 if __name__ == "__main__":
-    auto_model_test()
-    # main()
+    # auto_model_test()
+    main()
