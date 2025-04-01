@@ -21,7 +21,7 @@ IMAGE_CONFIG = {
     "normalize_std": [0.229, 0.224, 0.225]
 }
 
-# 输出配置
+# 输出配置 这里主要在test_model用到了，就没改动了，搞了个适配接口的存储相关配置
 OUTPUT_CONFIG = {
     "default_output_path": "results/prediction_result.png",
     "chart_title": "油菜籽成分含量预测",
@@ -32,5 +32,6 @@ OUTPUT_CONFIG = {
 SYSTEM_CONFIG = {
     "default_seed": 42,
     "log_level": "INFO",
-    "log_format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    "log_format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    "save_path": "db/" # 数据存储路径
 }

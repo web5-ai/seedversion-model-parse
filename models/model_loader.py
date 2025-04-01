@@ -173,11 +173,17 @@ class ModelLoader:
                 
                 # 尝试加载状态字典
                 model_instance.load_state_dict(state_dict, strict=False)
+                '''
+                因为我们没有原始训练代码里模型定义，拿到模型没办法完全复现加载，
+                只能用不严格模式，加载其中符合结构的参数，忽略不符合的参数
+                路径下的六个模型文件看命名应该是不同训练方法和模型出来的
+                我今天搞完接口主要就是看这些模型怎么尽可能复现
+                '''
                 self.model = model_instance
                 self.logger.info(f"成功加载{model_name}模型")
             except Exception as e:
                 self.logger.warning(f"加载{model_name}模型失败: {str(e)}")
-            
+
             if self.model is None:
                 raise ValueError("无法加载模型，请检查模型文件格式或提供模型架构信息")
             
