@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 
-from type_cls import *
+from type_cls import TaskModel
 from tools import *
 from model_api import ModelAPI
 
@@ -33,18 +33,19 @@ async def predict(task_info:TaskModel)->dict:
             timestamp: 任务上传时间（采样时间）需要约定时间格式便于转换存储
             usr_id: 用户id
             image_src: 图像文件的URL或路径
-            model_name: 模型名称'
-            model_path: 模型文件的路径，默认为None，调用的时候可以直接传入null
+            model_name: Literal['MPViT', 'ResNet', 'FasterNet', 'EfficientNet', 'Swin', 'VanillaNet']
+
     Returns:
         预测结果字典，fastapi自动转为json
     '''
     # 还没有约定好时间传递方式，不好转换，这里我先自定一个iso格式转换
     timestamp = task_info.timestamp.strftime("%Y_%m_%d-%H_%M_%S")
     # 读取上传的图像文件
+
     img = get_img(task_info.img_src)
     # 模型预测
     s = datetime.datetime.now()
-    evals = model_api.eval_image(img, task_info.model_name, task_info.model_path) # 得到字典
+    evals = model_api.eval_image(img, task_info.model_name) # 得到字典
     e = datetime.datetime.now()
     evals['time_delta'] = (e-s).total_seconds()
     # 保存任务到数据库，返回任务id，用于查询任务状态和结果
@@ -55,7 +56,7 @@ async def predict(task_info:TaskModel)->dict:
         'model': task_info.model_name,
         'evals': evals
     }
-    save_task(task_data)
+    # save_task(task_data)  
     return evals
 
 # if __name__ == "__main__":

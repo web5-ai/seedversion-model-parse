@@ -8,7 +8,8 @@ import random
 import numpy as np
 from PIL import Image
 from typing import Literal
-
+from models import MPViT, ResNet, FasterNet, EfficientNet, Swin, VanillaNet, MODEL_OPTIONS
+from config import MODEL_CONFIG
 
 class ModelLoader:
     """
@@ -25,7 +26,6 @@ class ModelLoader:
         self.model_path = model_path
         self.debug = debug
         self.model = None
-        
         # 设置日志
         self.logger = logging.getLogger("ModelLoader")
         if not self.logger.handlers:
@@ -36,6 +36,25 @@ class ModelLoader:
         
         self.logger.setLevel(logging.DEBUG if debug else logging.INFO)
         
+    def _analyze_state_dict(self):
+        """
+        分析模型状态字典的结构
+        将状态字典结构进行分析，不保留张量数据，只保留张量形状
+        """
+        state_dict = self.state_dict
+        state_dict_info = {}
+        for key, value in state_dict.items():
+            state_dict_info[key] = value.shape
+        # 提取模型名
+        model_name = os.path.basename(self.model_path)
+        # 保存到文件中，文件名为model_name_state_dict_info.txt
+        model_dir = os.path.dirname(self.model_path)
+        info_path = os.path.join(model_dir, f"{model_name.split('.')[0]}_state_dict_info.txt")
+        with open(info_path, 'w') as f:
+            for key, shape in state_dict_info.items():
+                f.write(f"{key}: {shape}\n")
+        return state_dict_info
+    
     def _analyze_model(self):
         """
         分析模型结构并生成详细报告
@@ -63,8 +82,12 @@ class ModelLoader:
             model_info.append(f"- {name}: {module.__class__.__name__}")
             model_info.append(f"  参数量: {params:,}")
         
+        # 模型结构与状态字典差异信息
+        model_info.append("\n4. 模型结构与状态字典差异信息:")
+        model_info.append(f"- 状态字典相对模型结构缺少的参数量: {len(self.missing_keys)}")
+        model_info.append(f"- 状态字典相对模型结构多出的参数量: {len(self.unexpected_keys)}")
         # 输入输出信息
-        model_info.append("\n4. 输入输出信息:")
+        model_info.append("\n5. 输入输出信息:")
         model_info.append("- 输入尺寸: (224, 224)")
         model_info.append("- 输入通道: 3 (RGB)")
         if hasattr(self.model, 'fc'):
@@ -74,17 +97,17 @@ class ModelLoader:
                 model_info.append(f"- 输出维度: {self.model.fc.out_features}")
         
         # 预处理信息
-        model_info.append("\n5. 预处理信息:")
+        model_info.append("\n6. 预处理信息:")
         model_info.append("- 图像缩放: 224x224")
         model_info.append("- 归一化参数:")
         model_info.append("  均值: [0.485, 0.456, 0.406]")
         model_info.append("  标准差: [0.229, 0.224, 0.225]")
-        
+
         # 保存信息到文件，不同的模型会进行标识
         model_dir = os.path.dirname(self.model_path)
         # info_path = os.path.join(model_dir, "model_info.txt")
-        model_name = os.path.splitext(os.path.basename(self.model_path))[0]
-        info_path = os.path.join(model_dir, f"{model_name}_info.txt")
+        modelfile_name = os.path.splitext(os.path.basename(self.model_path))[0]
+        info_path = os.path.join(model_dir, f"{modelfile_name}_{self.model_name}_info.txt")
         try:
             with open(info_path, 'w', encoding='utf-8') as f:
                 f.write('\n'.join(model_info))
@@ -111,93 +134,56 @@ class ModelLoader:
         torch.backends.cudnn.benchmark = False # 关闭动态卷积算法
         self.logger.info(f"已设置随机种子: {seed}")
 
-    def _load_model(self, model_name:Literal['ResNet','VGG','FasterNet'], model_path = None):
+    def _load_model(self, model_name:MODEL_OPTIONS):
         """
         加载预训练模型
 
         Args:
             model: 用来选择加载状态字典的模型结构，默认为ResNet
         """
-        if model_path is not None:
-            self.model_path = model_path
-        else:
-            logging.warning("未提供模型路径，将使用默认路径")
-        
-        if not os.path.exists(self.model_path):
-            raise FileNotFoundError(f"模型文件不存在: {self.model_path}")
         
         self.logger.info(f"正在加载模型: {self.model_path}")
         
         try:
-            # 首先尝试直接加载PyTorch模型
-            state_dict = torch.load(self.model_path, map_location='cpu')
-            
-            # 根据状态字典推断模型结构
-            if isinstance(state_dict, dict):
-                if 'model' in state_dict:
-                    state_dict = state_dict['model']
-                elif 'state_dict' in state_dict:
-                    state_dict = state_dict['state_dict']
-            
-            # 创建模型实例
-            from torchvision.models import resnet50, vgg16, efficientnet_b0
-            
-            if model_name == 'ResNet':
-                model_instance = resnet50(pretrained=False)
-            elif model_name == 'VGG':
-                model_instance = vgg16(pretrained=False)
-            elif model_name == 'FasterNet':
-                model_instance = efficientnet_b0(pretrained=False)
-            # 尝试不同的模型架构
-            # model_candidates = [
-            #     ('ResNet50', resnet50(pretrained=False)),
-            #     ('VGG16', vgg16(pretrained=False)),
-            #     ('EfficientNet', efficientnet_b0(pretrained=False))
-            # ]
-            # 这里根据传递的参数设置加载状态字典的方式
-            # for model_name, model_instance in model_candidates:
-            try:
-                # 修改最后  一层以适应输出维度
-                if 'fc.weight' in state_dict:
-                    out_features = state_dict['fc.weight'].shape[0]
-                    if hasattr(model_instance, 'fc'):
-                        in_features = model_instance.fc.in_features
-                        model_instance.fc = nn.Linear(in_features, out_features)
-                    elif hasattr(model_instance, 'classifier'):
-                        if isinstance(model_instance.classifier, nn.Sequential):
-                            in_features = model_instance.classifier[-1].in_features
-                            model_instance.classifier[-1] = nn.Linear(in_features, out_features)
-                        else:
-                            in_features = model_instance.classifier.in_features
-                            model_instance.classifier = nn.Linear(in_features, out_features)
-                
-                # 尝试加载状态字典
-                model_instance.load_state_dict(state_dict, strict=False)
-                '''
-                因为我们没有原始训练代码里模型定义，拿到模型没办法完全复现加载，
-                只能用不严格模式，加载其中符合结构的参数，忽略不符合的参数
-                路径下的六个模型文件看命名应该是不同训练方法和模型出来的
-                我今天搞完接口主要就是看这些模型怎么尽可能复现
-                '''
-                self.model = model_instance
-                self.logger.info(f"成功加载{model_name}模型")
-            except Exception as e:
-                self.logger.warning(f"加载{model_name}模型失败: {str(e)}")
+
+            self.model_name = model_name
+            # if 生成类
+            if model_name == "MPViT":
+                model_class = MPViT
+            elif model_name == "ResNet":
+                model_class = ResNet
+            elif model_name == "FasterNet":
+                model_class = FasterNet
+            elif model_name == "EfficientNet":
+                model_class = EfficientNet
+            elif model_name == "Swin":
+                model_class = Swin
+            elif model_name == "VanillaNet":
+                model_class = VanillaNet
+            else:
+                raise ValueError(f"不支持的模型: {model_name}")
+            # 加载模型
+            self.model = model_class()  # 创建模型实例
+            # try:
+            #     model_class = globals()[model_name]  # 尝试从全局变量中获取模型类
+            #     self.model = model_class()  # 创建模型实例
+            # except KeyError:
+            #     raise ValueError(f"不支持的模型: {model_name}")
+            model_path = os.path.join(MODEL_CONFIG['model_path'], f'{model_name}.pt')
+            self.state_dict = torch.load(model_path, map_location=torch.device('cpu'))
+            # 加载和model_name同名的模型
+            self.model.load_state_dict(self.state_dict, strict=True)  # 加载状态字典，允许部分参数不匹配
+
+            self.logger.info(f"成功加载{model_name}模型")
+        except Exception as e:
+            self.logger.warning(f"加载{model_name}模型失败: {str(e)}")
 
             if self.model is None:
                 raise ValueError("无法加载模型，请检查模型文件格式或提供模型架构信息")
             
-            # 设置为评估模式
-            self.model.eval()
-            self.logger.info("模型加载完成，已设置为评估模式")
-            
-            # 分析并保存模型信息
-            model_info = self._analyze_model()
-            self.logger.debug("\n" + model_info) # 调试时再显示模型信息
-            
-        except Exception as e:
-            self.logger.error(f"加载模型失败: {str(e)}")
-            raise
+        # 设置为评估模式
+        self.model.eval()
+        self.logger.info("模型加载完成，已设置为评估模式")
     
     def preprocess_image(self, image):
         """

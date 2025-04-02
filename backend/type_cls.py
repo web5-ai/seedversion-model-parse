@@ -13,5 +13,4 @@ class TaskModel(BaseModel):
     timestamp: datetime 
     usr_id:str
     img_src:str
-    model_name:Literal['ResNet','VGG','FasterNet']
-    model_path:Union[str, None] =None
+    model_name:Literal['MPViT', 'ResNet', 'FasterNet', 'EfficientNet', 'Swin', 'VanillaNet']

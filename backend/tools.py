@@ -17,6 +17,8 @@ from uuid import uuid4
 import logging
 from PIL import Image
 
+# MODEL_OPTIONS = Literal['MPViT', 'ResNet', 'FasterNet', 'EfficientNet', 'Swin', 'VanillaNet']
+
 def setup_logger(name="Backend/Tools", level=SYSTEM_CONFIG["log_level"]):
     """
     设置日志记录器

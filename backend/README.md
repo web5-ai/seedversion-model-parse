@@ -12,3 +12,14 @@
 - main.py:
   async def predict(image_url: str, model_name='ResNet'|'VGG'|'FasterNet', model_path=None):
 - 注：test_model.py基本没参考价值了，以及整个项目里有很多重复代码，在使用时我就以model_loader.py为主要参考了，尽量以这个文件里实现的方法为基准
+
+## 功能测试记录
+
+现在先测试几个模型能否正常调用
+
+- ResNet: 有效
+- Swin: bug还未调试好
+- FasterNet: 有效
+- EfficientNet:
+- MPViT: 有效
+- VanillanNet:  调整后，已经有效

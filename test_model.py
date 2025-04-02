@@ -14,7 +14,7 @@ import logging
 import argparse
 import random
 import datetime
-from models.model_loader import ModelLoader
+from utils.model_loader import ModelLoader
 from config import MODEL_CONFIG, IMAGE_CONFIG, OUTPUT_CONFIG, SYSTEM_CONFIG
 from utils.environment import check_dependencies, setup_environment
 
@@ -69,7 +69,7 @@ def set_seed(seed=None):
     torch.backends.cudnn.benchmark = False # 关闭动态卷积算法
     logger.info(f"已设置随机种子: {seed}")
 
-def load_model(model_path, device='cpu'):
+def load_model(model_name = 'FasterNet',model_path = None, device='cpu'):
     """
     加载预训练模型
     
@@ -83,7 +83,7 @@ def load_model(model_path, device='cpu'):
     try:
         # 使用ModelLoader加载模型
         model_loader = ModelLoader(model_path, debug=True)
-        model_loader._load_model(model_name='ResNet')
+        model_loader._load_model(model_name= model_name)
         model = model_loader.model
         model.to(device)
         model.eval()
@@ -152,114 +152,24 @@ def generate_text_report(output_np, components, save_path=None, model_name=None)
         save_path: 保存路径
         model_name: 模型文件名
     """
-    # 找出含量最高的成分
-    max_index = np.argmax(output_np)
-    max_component = components[max_index]
-    max_value = output_np[max_index]
-    
-    # 找出含量最低的成分
-    min_index = np.argmin(output_np)
-    min_component = components[min_index]
-    min_value = output_np[min_index]
-    
-    # 计算平均含量
-    avg_value = np.mean(output_np)
-    
-    # 根据含量高低对成分进行排序
-    sorted_indices = np.argsort(output_np)[::-1]  # 从高到低排序
-    
+    if len(output_np) !=2:
+        logger.error(f"输出维度错误，应为2，实际为{len(output_np)}")
+        return
     # 打印数值结果
-    logger.info("\n=== 油菜籽成分含量预测报告 ===")
-    logger.info("\n成分含量预测结果:")
+    logger.info("=== 油菜籽成分含量预测报告 ===")
+    logger.info("成分含量预测结果:")
     for i, comp in enumerate(components):
         logger.info(f"{comp}: {output_np[i]:.4f}")
     
     # 添加详细的文字结论
-    logger.info("\n预测结论:")
-    logger.info(f'\n预测模型: {model_name if model_name else "未知模型"}')
-    # 输出结论
-    logger.info(f"1. 该油菜籽样本中含量最高的成分是 {max_component}，含量为 {max_value:.4f}")
-    logger.info(f"2. 含量最低的成分是 {min_component}，含量为 {min_value:.4f}")
-    logger.info(f"3. 所有成分的平均含量为 {avg_value:.4f}")
+    logger.info("预测结论:")
+    logger.info(f'预测模型: {model_name if model_name else "未知模型"}')
     
-    logger.info("4. 各成分含量从高到低排序:")
-    for i, idx in enumerate(sorted_indices):
-        logger.info(f"   {i+1}. {components[idx]}: {output_np[idx]:.4f}")
-    
-    # 添加一些简单的品质评估（使用配置中的阈值）
-    logger.info("\n5. 品质评估:")
-    thresholds = MODEL_CONFIG["quality_thresholds"]
-    
-    # 检查油酸含量
-    if "油酸" in components and "油酸" in thresholds:
-        oil_index = components.index("油酸")
-        oil_value = output_np[oil_index]
-        oil_threshold = thresholds["油酸"]
-        
-        if oil_value > oil_threshold:
-            logger.info(f"   油酸含量较高 ({oil_value:.4f})，品质较好")
-        else:
-            logger.info(f"   油酸含量较低 ({oil_value:.4f})，品质一般")
-    
-    # 检查亚油酸含量
-    if "亚油酸" in components and "亚油酸" in thresholds:
-        linoleic_index = components.index("亚油酸")
-        linoleic_value = output_np[linoleic_index]
-        linoleic_threshold = thresholds["亚油酸"]
-        
-        if linoleic_value > linoleic_threshold:
-            logger.info(f"   亚油酸含量较高 ({linoleic_value:.4f})，营养价值较高")
-        else:
-            logger.info(f"   亚油酸含量较低 ({linoleic_value:.4f})，营养价值一般")
-    
-    # 将结果保存到文本文件
-    if save_path:
-        # 添加时间戳到文件名，避免覆盖现有报告
-        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-        txt_path = os.path.splitext(save_path)[0] + f"_report_{timestamp}.txt"
-        try:
-            with open(txt_path, 'w', encoding='utf-8') as f:
-                f.write("=== 油菜籽成分含量预测报告 ===\n\n")
-                f.write(f"预测模型: {model_name if model_name else '未知模型'}\n")
-                f.write("成分含量预测结果:\n")
-                for i, comp in enumerate(components):
-                    f.write(f"{comp}: {output_np[i]:.4f}\n")
-                
-                f.write("\n预测结论:\n")
-                f.write(f"1. 该油菜籽样本中含量最高的成分是 {max_component}，含量为 {max_value:.4f}\n")
-                f.write(f"2. 含量最低的成分是 {min_component}，含量为 {min_value:.4f}\n")
-                f.write(f"3. 所有成分的平均含量为 {avg_value:.4f}\n")
-                
-                f.write("\n4. 各成分含量从高到低排序:\n")
-                for i, idx in enumerate(sorted_indices):
-                    f.write(f"   {i+1}. {components[idx]}: {output_np[idx]:.4f}\n")
-                
-                f.write("\n5. 品质评估:\n")
-                if output_np[0] > 0.5:
-                    f.write(f"   油酸含量较高 ({output_np[0]:.4f})，品质较好\n")
-                else:
-                    f.write(f"   油酸含量较低 ({output_np[0]:.4f})，品质一般\n")
-                
-                if output_np[1] > 0.3:
-                    f.write(f"   亚油酸含量较高 ({output_np[1]:.4f})，营养价值较高\n")
-                else:
-                    f.write(f"   亚油酸含量较低 ({output_np[1]:.4f})，营养价值一般\n")
-                
-                f.write(f"\n报告生成时间: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-            
-            logger.info(f"\n文本报告已保存至: {txt_path}")
-        except Exception as e:
-            logger.error(f"保存报告失败: {str(e)}")
-    
-    logger.info("\n=== 报告结束 ===")
+    logger.info("=== 报告结束 ===")
     
     return {
-        "max_component": max_component,
-        "max_value": max_value,
-        "min_component": min_component,
-        "min_value": min_value,
-        "avg_value": avg_value,
-        "sorted_indices": sorted_indices
+        'protein': f'{output_np[0]:.4f}',
+        'oil': f'{output_np[1]:.4f}',
     }
 
 def save_chart(output_np, components, save_path):
@@ -395,37 +305,10 @@ def auto_model_test():
         # 加载模型
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         logger.info(f"使用设备: {device}")
-        model, model_loader = load_model(model_path, device)
-        
-        if model is None:
-            return
-        
-        # 打印模型结构
-        logger.info("\n模型结构:")
-        logger.info(str(model))
-        
-        # 预处理图像
-        image_tensor = preprocess_image(test_image_path, model_loader)
-        
-        if image_tensor is None:
-            return
-        
-        # 进行预测
-        output = predict(model, image_tensor, device)
-        
-        if output is None:
-            return
-        
-        # # 显示预测结果
-        # logger.info("\n预测结果:")
-        # logger.info(f"输出张量形状: {output.shape}")
-        # logger.info(f"输出值: {output.cpu().numpy()}")
-        
-        # 可视化结果
-        component_names = MODEL_CONFIG["component_names"][:output.shape[1]]
-        visualize_results(output, component_names, output_path, model_name=os.path.basename(model_path))
-        
-        logger.info("\n测试完成!")
+        model_loader = ModelLoader(model_path, debug=True)
+        model_loader._load_model(model_name= 'ResNet') # 这里可以根据模型文件名称选择模型结构，这里默认选择ResNet
+        model_loader._analyze_state_dict()
+
 
 def main():
     # 解析命令行参数
@@ -445,6 +328,7 @@ def main():
     
     # 设置模型路径和测试图像路径
     model_path = args.model
+    # model_path =  'weights/ResNet18_best.pt' #args.model
     test_image_path = args.image
     
     # 默认不生成图表，只输出文本报告
@@ -468,14 +352,14 @@ def main():
     # 加载模型
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"使用设备: {device}")
-    model, model_loader = load_model(model_path, device)
+    model, model_loader = load_model('ResNet', model_path, device)
     
     if model is None:
         return
-    
-    # 打印模型结构
-    logger.info("\n模型结构:")
-    logger.info(str(model))
+
+    # # 打印模型结构
+    # logger.info("\n模型结构:")
+    # logger.info(str(model))
     
     # 预处理图像
     image_tensor = preprocess_image(test_image_path, model_loader)
@@ -500,6 +384,85 @@ def main():
     
     logger.info("\n测试完成!")
 
+def test_model(model_name = 'ResNet', model_path = 'weights/ResNet18_best.pt'):
+    # 解析命令行参数
+    args = parse_arguments()
+    
+    # 检查环境
+    if args.check_env:
+        logger.info("正在检查环境...")
+        if not check_dependencies() or not setup_environment():
+            logger.error("环境检查失败，请解决上述问题后重试")
+            return
+        logger.info("环境检查通过!")
+        return
+    
+    # 设置随机种子
+    set_seed(args.seed)
+    
+    # 设置模型路径和测试图像路径
+    # model_path = model_path
+    # model_path =  'weights/ResNet18_best.pt' #args.model
+    test_image_path = args.image
+    
+    # 默认不生成图表，只输出文本报告
+    output_path = None
+    args.no_chart = True  # 强制设置为不生成图表
+    
+    # 输出运行模式信息
+    logger.info("运行模式: 仅文本报告，不生成图表")
+    
+    # 检查文件是否存在
+    if not os.path.exists(model_path):
+        logger.error(f"错误: 模型文件不存在: {model_path}")
+        logger.info(f"请确保模型文件位于正确位置，或使用 --model 参数指定正确的路径")
+        return
+    
+    if not os.path.exists(test_image_path):
+        logger.error(f"错误: 测试图像不存在: {test_image_path}")
+        logger.info(f"请确保测试图像位于正确位置，或使用 --image 参数指定正确的路径")
+        return
+    
+    # 加载模型
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    logger.info(f"使用设备: {device}")
+    model, model_loader = load_model(model_name, model_path, device)
+    
+    if model is None:
+        return
+    
+    # 修改模型结构
+
+    # # 打印模型结构
+    # logger.info("\n模型结构:")
+    # logger.info(str(model))
+    
+    # 预处理图像
+    image_tensor = preprocess_image(test_image_path, model_loader)
+    
+    if image_tensor is None:
+        return
+    
+    # 进行预测
+    output = predict(model, image_tensor, device)
+    
+    if output is None:
+        return
+    
+    # 显示预测结果
+    logger.info("预测结果:")
+    logger.info(f"输出张量形状: {output.shape}")
+    logger.info(f"输出值: {output.cpu().numpy()}")
+    
+    # 可视化结果
+    component_names = MODEL_CONFIG["component_names"][:output.shape[1]]
+    visualize_results(output, component_names, output_path, model_name=model_name)
+    
+    logger.info("测试完成!")
+
 if __name__ == "__main__":
-    # auto_model_test()
-    main()
+    # test_model()
+    # 再复现几个模型的字典
+
+    auto_model_test()
+    # main()

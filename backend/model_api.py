@@ -14,10 +14,9 @@ import numpy as np
 from PIL import Image
 import logging
 from typing import Literal
-from models.model_loader import ModelLoader
+from utils.model_loader import ModelLoader
 from config import MODEL_CONFIG, IMAGE_CONFIG, OUTPUT_CONFIG, SYSTEM_CONFIG
 from utils.environment import check_dependencies, setup_environment
-
 def setup_logger(name="ModelAPI", level=SYSTEM_CONFIG["log_level"]):
     """
     设置日志记录器
@@ -60,7 +59,7 @@ class ModelAPI:
         device: 设备，默认为cuda，如果cuda不可用，则使用cpu
         loader: 模型加载器，用于加载模型
     """
-    def __init__(self, model_path=MODEL_CONFIG['model_path'], device:Literal['cuda','cpu']='cuda'):
+    def __init__(self, device:Literal['cuda','cpu']='cuda'):
         """
         初始化模型，提前加载状态字典，随时可以转化成模型
 
@@ -71,10 +70,7 @@ class ModelAPI:
         """
         check_dependencies() # 检查依赖
         setup_environment() # 设置环境变量
-        
-        self.model_path = model_path
-        self.model_paths = [os.path.join('weights', f) for f in os.listdir('weights') if f.endswith('.pt')] # 读取所有路径
-        
+                
         if device == 'cpu':
             self.device = torch.device('cpu') # 使用cpu
             logger.info("使用CPU进行推理")
@@ -85,7 +81,7 @@ class ModelAPI:
             else: # 如果cuda不可用，使用cpu
                 self.device = torch.device('cpu') # 使用cpu
                 logger.info("GPU不可用，使用CPU进行推理")
-        self.loader = ModelLoader(model_path=self.model_path) # 初始化加载器
+        self.loader = ModelLoader() # 初始化加载器
 
     def generate_text_evals(self,output, components)->dict:
         """
@@ -108,9 +104,9 @@ class ModelAPI:
             output_np = output_np[:expected_components]
     
         # 找出含量最高的成分
-        max_index = np.argmax(output_np)
-        max_component = components[max_index]
-        max_value = output_np[max_index]
+        protein = output_np[0] # 蛋白质含量
+
+        oil = output_np[1] # 油含量
         
         # 找出含量最低的成分
         min_index = np.argmin(output_np)
@@ -128,11 +124,11 @@ class ModelAPI:
         logger.info(f'\n预测模型: {self.model_name if self.model_name else "未知模型"}')
 
         return  {
-            "protein": float(max_value),
-            "oil": float(min_value),
+            "protein": float(protein),
+            "oil": float(oil),
         }
     
-    def eval_image(self, image, model_name:Literal['ResNet','VGG','FasterNet'], model_path=None)->dict:
+    def eval_image(self, image, model_name:Literal['MPViT', 'ResNet', 'FasterNet', 'EfficientNet', 'Swin', 'VanillaNet'])->dict:
         """
         对单张图像进行预测，返回预测结果的字典
 
@@ -144,20 +140,16 @@ class ModelAPI:
         Returns:
             预测结果的字典
         """
-        if model_path is not None:
-            self.model_path = model_path # 如果传入了模型路径，就使用传入的模型路径
-        self.model_name = model_name # 保存模型名称
-        self.loader.set_seed(SYSTEM_CONFIG['default_seed']) # 设置随机种子
-        self.loader._load_model(model_name=model_name, model_path=self.model_path) # 加载模型 这里还没添加GPU选项
-       
+
         try:
-           
+            self.loader._load_model(model_name) # 加载模型
+            self.model_name = model_name # 设置模型名称
             preprocessed_image = self.loader.preprocess_image(image) # 预处理图像
             # 进行预测
             output = self.loader.predict(preprocessed_image) # 进行预测
 
             # 生成文本报告
-            component_names = MODEL_CONFIG["component_names"][:output.shape[1]]
+            component_names = MODEL_CONFIG["component_names"]
 
             evals = self.generate_text_evals(output,component_names) # 生成文本报告
             logger.info(f"图像 {image} 预测完成")
