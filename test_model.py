@@ -267,47 +267,9 @@ def auto_model_test():
     # ]
 
     for model_path in model_paths:
-        args = parse_arguments()
-
-        # if args.check_env:
-        #     logger.info("正在检查环境...")
-        #     if not check_dependencies() or not setup_environment():
-        #         logger.error("环境检查失败，请解决上述问题后重试")
-        #         return
-        #     logger.info("环境检查通过!")
-        #     return
-        
-        # 设置随机种子
-        set_seed(args.seed)
-        
-        # 设置模型路径和测试图像路径
-        # model_path = args.model
-        test_image_path = args.image
-        
-        # 默认不生成图表和文本文件，只在终端输出文本报告
-        output_path = None
-        args.no_chart = True  # 强制设置为不生成图表
-        
-        # 输出运行模式信息
-        logger.info("运行模式: 仅文本报告，不生成图表")
-        
-        # 检查文件是否存在
-        if not os.path.exists(model_path):
-            logger.error(f"错误: 模型文件不存在: {model_path}")
-            logger.info(f"请确保模型文件位于正确位置，或使用 --model 参数指定正确的路径")
-            return
-        
-        if not os.path.exists(test_image_path):
-            logger.error(f"错误: 测试图像不存在: {test_image_path}")
-            logger.info(f"请确保测试图像位于正确位置，或使用 --image 参数指定正确的路径")
-            return
-        
-        # 加载模型
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        logger.info(f"使用设备: {device}")
-        model_loader = ModelLoader(model_path, debug=True)
-        model_loader._load_model(model_name= 'ResNet') # 这里可以根据模型文件名称选择模型结构，这里默认选择ResNet
-        model_loader._analyze_state_dict()
+        if 'Swin' in model_path:
+            continue
+        test_model(model_path)
 
 
 def main():
@@ -384,85 +346,35 @@ def main():
     
     logger.info("\n测试完成!")
 
-def test_model(model_name = 'ResNet', model_path = 'weights/ResNet18_best.pt'):
-    # 解析命令行参数
+def test_model(model_path = 'weights/ResNet18_best.pt'):
     args = parse_arguments()
-    
-    # 检查环境
-    if args.check_env:
-        logger.info("正在检查环境...")
-        if not check_dependencies() or not setup_environment():
-            logger.error("环境检查失败，请解决上述问题后重试")
-            return
-        logger.info("环境检查通过!")
-        return
-    
+
     # 设置随机种子
     set_seed(args.seed)
     
     # 设置模型路径和测试图像路径
-    # model_path = model_path
-    # model_path =  'weights/ResNet18_best.pt' #args.model
+    # model_path = args.model
     test_image_path = args.image
     
-    # 默认不生成图表，只输出文本报告
+    # 默认不生成图表和文本文件，只在终端输出文本报告
     output_path = None
     args.no_chart = True  # 强制设置为不生成图表
     
     # 输出运行模式信息
     logger.info("运行模式: 仅文本报告，不生成图表")
     
-    # 检查文件是否存在
-    if not os.path.exists(model_path):
-        logger.error(f"错误: 模型文件不存在: {model_path}")
-        logger.info(f"请确保模型文件位于正确位置，或使用 --model 参数指定正确的路径")
-        return
-    
-    if not os.path.exists(test_image_path):
-        logger.error(f"错误: 测试图像不存在: {test_image_path}")
-        logger.info(f"请确保测试图像位于正确位置，或使用 --image 参数指定正确的路径")
-        return
-    
     # 加载模型
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"使用设备: {device}")
-    model, model_loader = load_model(model_name, model_path, device)
-    
-    if model is None:
+    model_loader = ModelLoader(model_path, debug=True)
+    model_name = model_path.split('\\')[-1].split('.')[0] # 从模型路径中提取模型名称
+    model_loader._load_model(model_name= model_name) # 这里可以根据模型文件名称选择模型结构，这里默认选择ResNet
+    if model_loader.model.state_dict() is None:
+        logger.error(f"模型加载失败: {model_path}")
         return
-    
-    # 修改模型结构
-
-    # # 打印模型结构
-    # logger.info("\n模型结构:")
-    # logger.info(str(model))
-    
-    # 预处理图像
-    image_tensor = preprocess_image(test_image_path, model_loader)
-    
-    if image_tensor is None:
-        return
-    
-    # 进行预测
-    output = predict(model, image_tensor, device)
-    
-    if output is None:
-        return
-    
-    # 显示预测结果
-    logger.info("预测结果:")
-    logger.info(f"输出张量形状: {output.shape}")
-    logger.info(f"输出值: {output.cpu().numpy()}")
-    
-    # 可视化结果
-    component_names = MODEL_CONFIG["component_names"][:output.shape[1]]
-    visualize_results(output, component_names, output_path, model_name=model_name)
-    
-    logger.info("测试完成!")
+    model_loader._analyze_state_dict()
 
 if __name__ == "__main__":
-    # test_model()
-    # 再复现几个模型的字典
-
-    auto_model_test()
+    test_model('weights\Swin.pt')
+    # auto_model_test()
     # main()

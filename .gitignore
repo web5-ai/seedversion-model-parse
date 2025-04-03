@@ -121,3 +121,6 @@ models/Swin.py
 models/swinv2_config_large.py
 models/swinv2_config.py
 models/VanillaNet.py
+models/EfficientNet.py
+models/FasterNet.py
+models/MPViT.py

@@ -107,21 +107,17 @@ class ModelAPI:
         protein = output_np[0] # 蛋白质含量
 
         oil = output_np[1] # 油含量
-        
-        # 找出含量最低的成分
-        min_index = np.argmin(output_np)
-        min_component = components[min_index]
-        min_value = output_np[min_index]
+
 
         # 打印数值结果
-        logger.info("\n=== 油菜籽成分含量预测报告 ===")
-        logger.info("\n成分含量预测结果:")
+        logger.info("=== 油菜籽成分含量预测报告 ===")
+        logger.info("成分含量预测结果:")
         for i, comp in enumerate(components):
             logger.info(f"{comp}: {output_np[i]:.4f}")
         
         # 添加详细的文字结论
-        logger.info("\n预测结论:")
-        logger.info(f'\n预测模型: {self.model_name if self.model_name else "未知模型"}')
+        logger.info("预测结论:")
+        logger.info(f'预测模型: {self.model_name if self.model_name else "未知模型"}')
 
         return  {
             "protein": float(protein),
@@ -146,15 +142,16 @@ class ModelAPI:
             self.model_name = model_name # 设置模型名称
             preprocessed_image = self.loader.preprocess_image(image) # 预处理图像
             # 进行预测
+            self.loader.set_seed(50)
             output = self.loader.predict(preprocessed_image) # 进行预测
 
             # 生成文本报告
             component_names = MODEL_CONFIG["component_names"]
 
             evals = self.generate_text_evals(output,component_names) # 生成文本报告
-            logger.info(f"图像 {image} 预测完成")
+            logger.info(f"图像预测完成")
         except Exception as e:
-            logger.error(f"预测 {image} 失败: {str(e)}")
+            logger.error(f"图像预测失败: {str(e)}")
             return None
         
         return evals

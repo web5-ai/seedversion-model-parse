@@ -56,7 +56,7 @@ async def predict(task_info:TaskModel)->dict:
         'model': task_info.model_name,
         'evals': evals
     }
-    # save_task(task_data)  
+    # save_task(task_data)  要重新调试
     return evals
 
 # if __name__ == "__main__":

@@ -148,38 +148,39 @@ class ModelLoader:
 
             self.model_name = model_name
             # if 生成类
-            if model_name == "MPViT":
-                model_class = MPViT
-            elif model_name == "ResNet":
-                model_class = ResNet
-            elif model_name == "FasterNet":
-                model_class = FasterNet
-            elif model_name == "EfficientNet":
-                model_class = EfficientNet
-            elif model_name == "Swin":
-                model_class = Swin
-            elif model_name == "VanillaNet":
-                model_class = VanillaNet
-            else:
-                raise ValueError(f"不支持的模型: {model_name}")
-            # 加载模型
-            self.model = model_class()  # 创建模型实例
-            # try:
-            #     model_class = globals()[model_name]  # 尝试从全局变量中获取模型类
-            #     self.model = model_class()  # 创建模型实例
-            # except KeyError:
+            # if model_name == "MPViT":
+            #     model_class = MPViT
+            # elif model_name == "ResNet":
+            #     model_class = ResNet
+            # elif model_name == "FasterNet":
+            #     model_class = FasterNet
+            # elif model_name == "EfficientNet":
+            #     model_class = EfficientNet
+            # elif model_name == "Swin":
+            #     model_class = Swin
+            # elif model_name == "VanillaNet":
+            #     model_class = VanillaNet
+            # else:
             #     raise ValueError(f"不支持的模型: {model_name}")
+            # # 加载模型
+            # self.model = model_class()  # 创建模型实例
+            try:
+                model_class = globals()[model_name]  # 尝试从全局变量中获取模型类
+                self.model = model_class()  # 创建模型实例
+            except KeyError:
+                raise ValueError(f"不支持的模型: {model_name}")
             model_path = os.path.join(MODEL_CONFIG['model_path'], f'{model_name}.pt')
-            self.state_dict = torch.load(model_path, map_location=torch.device('cpu'))
-            # 加载和model_name同名的模型
-            self.model.load_state_dict(self.state_dict, strict=True)  # 加载状态字典，允许部分参数不匹配
+
+            self.state_dict = self.model.load_model_weight(model_path)
+            # # 状态字典加载用模型封装的加载方法
+            # self.state_dict = torch.load(model_path, map_location=torch.device('cpu'))
+            # # 加载和model_name同名的模型
+            # self.model.load_state_dict(self.state_dict, strict=True)  # 加载状态字典，允许部分参数不匹配
 
             self.logger.info(f"成功加载{model_name}模型")
         except Exception as e:
             self.logger.warning(f"加载{model_name}模型失败: {str(e)}")
-
-            if self.model is None:
-                raise ValueError("无法加载模型，请检查模型文件格式或提供模型架构信息")
+            raise ValueError("无法加载模型，请检查模型文件格式或提供模型架构信息")
             
         # 设置为评估模式
         self.model.eval()

@@ -19,7 +19,7 @@
 
 - ResNet: 有效
 - Swin: bug还未调试好
-- FasterNet: 有效
-- EfficientNet:
-- MPViT: 有效
+- FasterNet: bug还未调试好
+- EfficientNet: 调整后，已经有效
+- MPViT: 调整后，已经有效
 - VanillanNet:  调整后，已经有效
