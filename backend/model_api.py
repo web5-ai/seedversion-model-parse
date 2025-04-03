@@ -140,7 +140,8 @@ class ModelAPI:
         try:
             self.loader._load_model(model_name) # 加载模型
             self.model_name = model_name # 设置模型名称
-            preprocessed_image = self.loader.preprocess_image(image) # 预处理图像
+            size = 256 if model_name == 'Swin' else 224 # 设置图像大小，Swin需要256，其他模型需要224
+            preprocessed_image = self.loader.preprocess_image(image, size) # 预处理图像
             # 进行预测
             self.loader.set_seed(50)
             output = self.loader.predict(preprocessed_image) # 进行预测

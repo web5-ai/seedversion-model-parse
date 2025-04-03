@@ -25,7 +25,7 @@ def get_image():
     return FileResponse('tests/test_images/image_custom.png')
 
 @app.post("/predict")
-async def predict(task_info:TaskModel)->dict:
+def predict(task_info:TaskModel)->dict:
     '''
     预测接口，接收图像文件和模型名称，返回预测结果。
     Args:

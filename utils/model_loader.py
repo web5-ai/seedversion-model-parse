@@ -10,6 +10,7 @@ from PIL import Image
 from typing import Literal
 from models import MPViT, ResNet, FasterNet, EfficientNet, Swin, VanillaNet, MODEL_OPTIONS
 from config import MODEL_CONFIG
+import traceback
 
 class ModelLoader:
     """
@@ -180,13 +181,15 @@ class ModelLoader:
             self.logger.info(f"成功加载{model_name}模型")
         except Exception as e:
             self.logger.warning(f"加载{model_name}模型失败: {str(e)}")
-            raise ValueError("无法加载模型，请检查模型文件格式或提供模型架构信息")
+            tb = traceback.format_exc()  # 获取完整的异常信息
+            self.logger.warning(f"加载模型错误信息: {tb}")
+            # raise ValueError("无法加载模型，请检查模型文件格式或提供模型架构信息")
             
         # 设置为评估模式
         self.model.eval()
         self.logger.info("模型加载完成，已设置为评估模式")
     
-    def preprocess_image(self, image):
+    def preprocess_image(self, image, size=224):
         """
         预处理图像
         
@@ -197,7 +200,7 @@ class ModelLoader:
             预处理后的图像张量
         """
         transform = transforms.Compose([
-            transforms.Resize((224, 224)),
+            transforms.Resize((size, size)),
             transforms.ToTensor(),
             transforms.Normalize(
                 mean=[0.485, 0.456, 0.406],
