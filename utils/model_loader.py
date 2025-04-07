@@ -12,6 +12,14 @@ from models import MPViT, ResNet, FasterNet, EfficientNet, Swin, VanillaNet, MOD
 from config import MODEL_CONFIG
 import traceback
 
+# 设置日志
+logger = logging.getLogger("ModelLoader")
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+
 class ModelLoader:
     """
     模型加载器，用于加载预训练模型
@@ -27,15 +35,7 @@ class ModelLoader:
         self.model_path = model_path
         self.debug = debug
         self.model = None
-        # 设置日志
-        self.logger = logging.getLogger("ModelLoader")
-        if not self.logger.handlers:
-            handler = logging.StreamHandler()
-            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-            handler.setFormatter(formatter)
-            self.logger.addHandler(handler)
-        
-        self.logger.setLevel(logging.DEBUG if debug else logging.INFO)
+
         
     def _analyze_state_dict(self):
         """
@@ -85,8 +85,8 @@ class ModelLoader:
         
         # 模型结构与状态字典差异信息
         model_info.append("\n4. 模型结构与状态字典差异信息:")
-        model_info.append(f"- 状态字典相对模型结构缺少的参数量: {len(self.missing_keys)}")
-        model_info.append(f"- 状态字典相对模型结构多出的参数量: {len(self.unexpected_keys)}")
+        # model_info.append(f"- 状态字典相对模型结构缺少的参数量: {len(self.missing_keys)}")
+        # model_info.append(f"- 状态字典相对模型结构多出的参数量: {len(self.unexpected_keys)}")
         # 输入输出信息
         model_info.append("\n5. 输入输出信息:")
         model_info.append("- 输入尺寸: (224, 224)")
@@ -112,9 +112,9 @@ class ModelLoader:
         try:
             with open(info_path, 'w', encoding='utf-8') as f:
                 f.write('\n'.join(model_info))
-            self.logger.info(f"模型详细信息已保存至: {info_path}")
+            logger.info(f"模型详细信息已保存至: {info_path}")
         except Exception as e:
-            self.logger.error(f"保存模型信息失败: {str(e)}")
+            logger.error(f"保存模型信息失败: {str(e)}")
         
         return '\n'.join(model_info)
     
@@ -133,7 +133,7 @@ class ModelLoader:
         torch.cuda.manual_seed_all(seed)
         torch.backends.cudnn.deterministic = True # 固定卷积算法以提高性能
         torch.backends.cudnn.benchmark = False # 关闭动态卷积算法
-        self.logger.info(f"已设置随机种子: {seed}")
+        logger.info(f"已设置随机种子: {seed}")
 
     def _load_model(self, model_name:MODEL_OPTIONS):
         """
@@ -143,7 +143,7 @@ class ModelLoader:
             model: 用来选择加载状态字典的模型结构，默认为ResNet
         """
         
-        self.logger.info(f"正在加载模型: {self.model_path}")
+        logger.info(f"正在加载模型: {self.model_path}")
         
         try:
 
@@ -172,22 +172,22 @@ class ModelLoader:
                 raise ValueError(f"不支持的模型: {model_name}")
             model_path = os.path.join(MODEL_CONFIG['model_path'], f'{model_name}.pt')
 
-            self.state_dict = self.model.load_model_weight(model_path)
+            self.state_dict = self.model.load_model_weight(model_path) # 这里是模型结构的状态字典，不是加载的状态字典
             # # 状态字典加载用模型封装的加载方法
             # self.state_dict = torch.load(model_path, map_location=torch.device('cpu'))
             # # 加载和model_name同名的模型
             # self.model.load_state_dict(self.state_dict, strict=True)  # 加载状态字典，允许部分参数不匹配
 
-            self.logger.info(f"成功加载{model_name}模型")
+            logger.info(f"成功加载{model_name}模型")
         except Exception as e:
-            self.logger.warning(f"加载{model_name}模型失败: {str(e)}")
+            logger.warning(f"加载{model_name}模型失败: {str(e)}")
             tb = traceback.format_exc()  # 获取完整的异常信息
-            self.logger.warning(f"加载模型错误信息: {tb}")
+            logger.warning(f"加载模型错误信息: {tb}")
             # raise ValueError("无法加载模型，请检查模型文件格式或提供模型架构信息")
             
         # 设置为评估模式
         self.model.eval()
-        self.logger.info("模型加载完成，已设置为评估模式")
+        logger.info("模型加载完成，已设置为评估模式")
     
     def preprocess_image(self, image, size=224):
         """

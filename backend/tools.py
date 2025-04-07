@@ -4,7 +4,7 @@
 
 import os
 import sys
-
+import pickle
 root_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(root_path) 
 
@@ -60,157 +60,85 @@ def get_img(img_url)->Union[Image.Image, None]:
             logger.error(f"下载图像 {img_url} 失败: {str(e)}")
             return None
         return image
-def text_to_dict(text:Union[str] = "")->dict:
-    """
-    将txt文件读取到的text转为字典
-    0:2 Meta: upload_usr_id, img_sha256, img_upload_time
-    4:8 ResNet
-    10:14 VGG
-    16:20 FasterNet
-    因为已知文本结构，就直接用索引填空了
 
-    Args:
-        text: 文本内容，默认为""
-
-    Returns:
-        dict: text为""时返回空字典
+def data_query(level:Literal["check_all", "check_user" ,"all","user","image"], **kwargs):
     """
-    report_dict = {
-        "Meta":{
-            "upload_usr_id": "",
-            "img_sha256": "",
-            "img_upload_time": ""
-        },
-        "ResNet":{
-            "created_time": "",
-            "task_id": "",
-            "protein": 0.0,
-            "oil": 0.0,
-        },
-        "VGG":{
-            "created_time": "",
-            "task_id": "",
-            "protein": 0.0,
-            "oil": 0.0,
-        },
-        "FasterNet":{
-            "created_time": "",
-            "task_id": "",
-            "protein": 0.0,
-            "oil": 0.0,
-        }
-    } # 将文本转为报告字典
-    if text != "": # 如果没有传入文本，则返回空字典
-        lines = text.splitlines()
-        report_dict["Meta"]["upload_usr_id"] = lines[1]
-        report_dict["Meta"]["img_sha256"] = lines[2]
-        report_dict["Meta"]["img_upload_time"] = lines[3]
-        report_dict["ResNet"]["created_time"] = lines[6]
-        report_dict["ResNet"]["task_id"] = lines[7]
-        report_dict["ResNet"]["protein"] = float(lines[8].split(":")[1].strip())
-        report_dict["ResNet"]["oil"] = float(lines[9].split(":")[1].strip())
-        report_dict["VGG"]["created_time"] = lines[12]
-        report_dict["VGG"]["task_id"] = lines[13]
-        report_dict["VGG"]["protein"] = float(lines[14].split(":")[1].strip())
-        report_dict["VGG"]["oil"] = float(lines[15].split(":")[1].strip())
-        report_dict["FasterNet"]["created_time"] = lines[18]
-        report_dict["FasterNet"]["task_id"] = lines[19]
-        report_dict["FasterNet"]["protein"] = float(lines[20].split(":")[1].strip())
-        report_dict["FasterNet"]["oil"] = float(lines[21].split(":")[1].strip())
-    return report_dict
-
-def dict_to_text(report_dict:dict)->str:
+    数据查询
+    check_all返回所有文件记录，包括用户 序号 哈希，不包含具体文件，主要用来查重
+    check_user同上
+    all user 返回从pickle加载的字典和图片哈希
+    image 通过图片hash查询图片路径
+    **kwargs接收usr_id和image_hash两个关键字
     """
-    将字典转为文本
-    """
-    text = ""
-    for key, value in report_dict.items():
-        text += f"model: {key}\n" if key!="Meta" else "Meta\n"
-        if isinstance(value, dict): # 如果是字典，则递归
-            for k, v in value.items():
-                text += f"{k}: {v}\n"
-            text += "\n" # 每个字典后面加一个空行
-    return text
-
-def data_query(level:Literal["check_all", "check_user" ,"all","user"], usr_id = None):
-    """
-    读取本地所有图片
-    """
-    if "user" in level and usr_id == None:
-        logger.warning(f"查询失败：查询级别为{level}，但是未传入usr_id")
-        return
-    elif "user" not in level and usr_id != None:
-        logger.warning(f"查询失败：查询级别为{level}，但是传入usr_id")
     
     db_path = SYSTEM_CONFIG["save_path"]
 
     # 读取下面的所有文件夹的名字，即包含基本信息
     all_records = os.listdir(db_path)
 
-    if level == "check": # check模式主要用于返回关键信息方便查重
+    if level == "check_all": # check模式主要用于返回关键信息方便查重
         return all_records
     
     elif level == "all":
-        all_uploads = [
-                {
-                    "image_path": str,
-                   "report": dict
-                }
-            ] 
+        all_uploads = [] 
         for record in all_records:
             file_path = os.path.join(db_path,record)
             files = os.listdir(file_path)
             for f in files: # 遍历两个文件
-                if f.endswith(".txt"): # 由于还不确定图片格式，先处理文本文件
-                    with open(os.path.join(file_path,f),"r",encoding="utf-8") as f:
-                        text = f.read()
-                        report_dict = text_to_dict(text)
-                else: # 图片文件
-                    img_path = os.path.join(file_path,f)
-            all_uploads.append({
-                "image_path": img_path,
-                "report": report_dict 
-            })
+                if f.endswith(".pickle"): # 由于还不确定图片格式，先处理文本文件
+                    with open(os.path.join(file_path,f),"rb") as f:
+                        report_dict = pickle.load(f)
+            all_uploads.append(report_dict)
             
         return all_uploads
     
     elif level == "check_user":
-        user_records = [] # 存储用户上传的记录
-        for record in all_records:
-            if usr_id in record: # 如果是该用户上传的，则记录下来
-                user_records.append(record)
+        try:
+            user_records = [] # 存储用户上传的记录
+            for record in all_records:
+                if kwargs["usr_id"] in record: # 如果是该用户上传的，则记录下来
+                    user_records.append(record)
+        except KeyError:
+            logger.error("查询用户上传记录时缺少usr_id参数")
         return user_records
     
     elif level == "user":
-        user_uploads = [
-                {
-                    "image_path": str, 
-                    "report": dict
-                }
-            ]
+        user_uploads = []
         for record in all_records:
-            if usr_id in record:
-                # 如果是该用户上传的，则组合路径读取下面的文件一起返回
-                file_path = os.path.join(db_path,record)
-                files = os.listdir(file_path)
-                for f in files: # 遍历两个文件
-                    if f.endswith(".txt"): # 由于还不确定图片格式，先处理文本文件
-                        with open(os.path.join(file_path,f),"r",encoding="utf-8") as f:
-                            text = f.read()
-                            report_dict = text_to_dict(text)
-                    else: # 图片文件
-                        img_path = os.path.join(file_path,f)
-                user_uploads.append({
-                    "image_path": img_path,
-                    "report": report_dict 
-                })
-        return user_uploads
+            try:
+                if kwargs["usr_id"] in record:
+                    # 如果是该用户上传的，则组合路径读取下面的文件一起返回
+                    file_path = os.path.join(db_path,record)
+                    files = os.listdir(file_path)
+                    for f in files: # 遍历两个文件
+                        if f.endswith(".pickle"): # 由于还不确定图片格式，先处理文本文件
+                            with open(os.path.join(file_path,f),"rb") as f:
+                                report_dict = pickle.load(f)
+                    image_hash = record.split("_")[-1] # 图片哈希值
+                    user_uploads.append(report_dict)
+            except KeyError:
+                logger.error("查询用户上传记录时缺少usr_id参数")
+
+    elif level == "image": # 返回图片路径
+        try:
+            for record in all_records:
+                if kwargs["image_hash"] in record: # 如果是该图片，就返回图片地址
+                    file_path = os.path.join(db_path,record)
+                    files = os.listdir(file_path)
+                    for f in files: # 遍历两个文件
+                        if not f.endswith(".pickle"):
+                            # 生成路径
+                            img_path = os.path.join(file_path,f)
+                    return img_path
+        except KeyError:
+            logger.error("查询图片时缺少image_hash参数")
+
+    return user_uploads
 
 def img_hash(image:Image.Image):
     """
     生成图片sha256
     读取文件夹路径看是否重复
-    检查图片是否重复
     
     Args:
         image: Image对象
@@ -227,53 +155,41 @@ def img_hash(image:Image.Image):
 def save_task(task_data:dict)->None:
     """
     保存任务
-    
+    放弃文本保存转为使用pickle库直接读写
     task_data = {
+        "timestamp": datetime 采样时间
         "usr_id": str 用户id
         "image" : Image 图片对象
         "model" : 模型
         "evals" : dict
     }
-    report = {
-        "model_name": VGG|ResNet...
-        "timestamp": datetime 采摘时间
-        "created_time": datetime 报告生成时间
-        "protein": float 蛋白质指标
-        "oil": float 油脂指标
-    }
 
-    report.txt格式
-    上传用户: usrid 接口传参
-    图片哈希: hash本地生成
-    上传时间: timestamp 接口传参
-
-    model: ResNet
-    task_id: uid本地生成
     
     设计结构
     db目录下
     usrid_imgNo 用户id+上传的第几个图片
-    |__datetime.jpg （重命名为哈希值）
-    |__report.txt
+    |__datetime.jpg （重命名为上传时间）
+    |__report.pickle （保存报告）
     """
     db_path = SYSTEM_CONFIG["save_path"]
     img_ha = img_hash(task_data["image"]) # 图片哈希值
-
+    report_dict = {
+        "Meta":{}
+    }
     user_records = data_query("check_user",usr_id=task_data["usr_id"])
     for index,record in enumerate(user_records):
         if img_ha in record:
-            logger.info(f"数据 {record} 重复")
+            no = record.split("_")[1] # 图片序号
+            logger.info(f"数据 {record} 重复, 更新数据")
             record_path = os.path.join(db_path,record) # 记录路径
             files = os.listdir(record_path) # 读取文件夹下的文件
             for f in files: # 遍历两个文件
-                if f.endswith(".txt"): # 由于还不确定图片格式，先处理文本文件
-                    with open(os.path.join(record_path,f),"r",encoding="utf-8") as f:
-                        text = f.read()
-                        report_dict = text_to_dict(text)
+                if f.endswith(".pickle"): # 由于还不确定图片格式，先处理pickle
+                    with open(os.path.join(record_path,f),"rb") as f:
+                        report_dict = pickle.load(f)
             break
     else: # 如果循环正常结束，则说明没有重复的
         no = len(user_records) + 1 # 图片序号
-        report_dict = text_to_dict() # 初始化报告字典
         report_dict["Meta"]["img_upload_time"] = task_data["timestamp"] # 上传时间
         record = f"{task_data['usr_id']}_{no}_{img_ha}" # 记录路径
         record_path = os.path.join(db_path,record) # 记录路径
@@ -281,20 +197,20 @@ def save_task(task_data:dict)->None:
 
         image_path = os.path.join(record_path,f"{task_data['timestamp']}.jpg") # 图片路径
         task_data["image"].save(image_path) # 保存图片
-        
-    report_dict["Meta"]["upload_usr_id"] = task_data["usr_id"] # 上传用户id
     
+    report_dict.update({task_data["model"]:{}})
+
+    report_dict["Meta"]["upload_usr_id"] = task_data["usr_id"] # 上传用户id
+    report_dict["Meta"]["no"] = no # 图片序号
     report_dict["Meta"]["img_sha256"] = img_ha
     
-    if task_data["model"] not in report_dict: # 如果模型不在报告字典中，则报错并在末尾添加
-        logger.error(f"模型 {task_data['model']} 不在规定的模型列表中，依然保存数据但是数据无法正常读取，请等手动处理")
-
     report_dict[task_data["model"]]["created_time"] = task_data["timestamp"] # 报告生成时间
     report_dict[task_data["model"]]["task_id"] = uuid4() # 任务id
     report_dict[task_data["model"]]["protein"] = task_data["evals"]["protein"] # 蛋白质指标
     report_dict[task_data["model"]]["oil"] = task_data["evals"]["oil"] # 油脂指标
-    report_path = os.path.join(record_path,f"report.txt") # 报告路径
-    with open(report_path,"w",encoding="utf-8") as f: # 保存报告
-        f.write(dict_to_text(report_dict))
+    report_path = os.path.join(record_path,f"report.pickle") # 报告路径
+    # 保存为pickle
+    with open(report_path,"wb") as f:
+        pickle.dump(report_dict,f)
 
     logger.info(f"数据 {record} 保存成功")

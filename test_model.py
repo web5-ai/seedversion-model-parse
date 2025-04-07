@@ -247,7 +247,7 @@ def parse_arguments():
     parser.add_argument('--check-env', action='store_true', help='检查环境并安装依赖')
     return parser.parse_args()
 
-def auto_model_test():
+def auto_model_test(except_models= [], test_image=None):
     '''
     从main()复制过来改了一下
     使用自动化参数测试weights下的所有模型
@@ -267,9 +267,10 @@ def auto_model_test():
     # ]
 
     for model_path in model_paths:
-        if 'Swin' in model_path:
+        if os.path.basename(model_path).split('.')[0] in except_models: # 跳过except_models中的模型
+            logger.info(f"跳过模型: {model_path}")
             continue
-        test_model(model_path)
+        test_model(model_path, test_image=test_image)
 
 
 def main():
@@ -346,24 +347,17 @@ def main():
     
     logger.info("\n测试完成!")
 
-def test_model(model_path = 'weights/ResNet18_best.pt'):
+def test_model(model_path = 'weights/ResNet18_best.pt', test_image = None):
     args = parse_arguments()
 
     # 设置随机种子
     set_seed(args.seed)
-    
-    # 设置模型路径和测试图像路径
-    # model_path = args.model
+
     test_image_path = args.image
     
     # 默认不生成图表和文本文件，只在终端输出文本报告
-    output_path = None
     args.no_chart = True  # 强制设置为不生成图表
-    
-    # 输出运行模式信息
-    logger.info("运行模式: 仅文本报告，不生成图表")
-    
-    # 加载模型
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"使用设备: {device}")
     model_loader = ModelLoader(model_path, debug=True)
@@ -372,9 +366,20 @@ def test_model(model_path = 'weights/ResNet18_best.pt'):
     if model_loader.model.state_dict() is None:
         logger.error(f"模型加载失败: {model_path}")
         return
+    model_loader._analyze_model()
     model_loader._analyze_state_dict()
+    if test_image is None:
+        logger.info(f"不进行预测测试")
+    else:
+        img = Image.open(test_image)
+        img_tensor = model_loader.preprocess_image(img, 224) if model_loader.model_name != 'Swin' else model_loader.preprocess_image(img,256)
+        output = model_loader.predict(img_tensor)
+        logger.info(f'模型{model_path} 预测结果: 蛋白质:{output[0][0]}, 油脂:{output[0][1]}')
 
 if __name__ == "__main__":
-    test_model('weights\Swin.pt')
-    # auto_model_test()
+    # test_model('weights\VanillaNet.pt')
+    # test_model('weights\FasterNet.pt')
+    exceptmodel = []
+    img = r'tests\test_images\image_custom.png'
+    auto_model_test(except_models=exceptmodel, test_image= img)
     # main()
