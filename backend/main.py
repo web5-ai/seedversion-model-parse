@@ -37,8 +37,8 @@ def predict(task_info:TaskModel)->dict:
 
     Returns:
         {
-            "protein": float,
             "oil": float,
+            "protein": float,
         }
     '''
     # 还没有约定好时间传递方式，不好转换，这里我先自定一个iso格式转换

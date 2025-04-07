@@ -103,10 +103,9 @@ class ModelAPI:
             logger.warning(f"模型输出维度({len(output_np)})大于预期成分数量({expected_components})，只取前{expected_components}个值")
             output_np = output_np[:expected_components]
     
-        # 找出含量最高的成分
-        protein = output_np[0] # 蛋白质含量
+        oil = output_np[0] # 蛋白质含量
 
-        oil = output_np[1] # 油含量
+        protein = output_np[1] # 油含量
 
 
         # 打印数值结果

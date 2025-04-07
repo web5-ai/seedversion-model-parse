@@ -265,12 +265,17 @@ def auto_model_test(except_models= [], test_image=None):
     #     'weights/mpvit.pt',
     #     'weights/efficientnet.pt'
     # ]
-
+    res = []
     for model_path in model_paths:
         if os.path.basename(model_path).split('.')[0] in except_models: # 跳过except_models中的模型
             logger.info(f"跳过模型: {model_path}")
             continue
-        test_model(model_path, test_image=test_image)
+        r:dict = test_model(model_path, test_image=test_image)
+        res.append(r)
+    with open ('output.txt', 'w') as f: # 输出结果到文件
+        for r in res: # 输出结果
+            for key, value in r.items():
+                f.write(f"{key}: {value}\n")
 
 
 def main():
@@ -374,7 +379,12 @@ def test_model(model_path = 'weights/ResNet18_best.pt', test_image = None):
         img = Image.open(test_image)
         img_tensor = model_loader.preprocess_image(img, 224) if model_loader.model_name != 'Swin' else model_loader.preprocess_image(img,256)
         output = model_loader.predict(img_tensor)
-        logger.info(f'模型{model_path} 预测结果: 蛋白质:{output[0][0]}, 油脂:{output[0][1]}')
+        logger.info(f'模型{model_path} 预测结果: 蛋白质:{output[1]}, 油脂:{output[0]}')
+        return {
+            'model': model_name,
+           'oil': f'{output[0]:.4f}',
+           'protein': f'{output[1]:.4f}',
+        }
 
 if __name__ == "__main__":
     # test_model('weights\VanillaNet.pt')
