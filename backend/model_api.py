@@ -148,6 +148,6 @@ class ModelAPI:
             evals = self.generate_text_evals(output,component_names) # 生成文本报告
         except Exception as e:
             logger.error(f"图像预测失败: {str(e)}")
-            return None
+            raise e
         
         return evals

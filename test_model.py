@@ -389,7 +389,18 @@ def test_model(model_path = 'weights/ResNet18_best.pt', test_image = None):
 if __name__ == "__main__":
     # test_model('weights\VanillaNet.pt')
     # test_model('weights\FasterNet.pt')
-    exceptmodel = []
-    img = r'tests\test_images\image_custom.png'
-    auto_model_test(except_models=exceptmodel, test_image= img)
+    # exceptmodel = []
+    # img = r'tests\test_images\image_custom.png'
+    url = 'http://47.100.53.207:8000/predict'
+    import requests
+    jdata = {
+        "timestamp": '2025-04-08T08:44:54.169Z',
+        'usr_id': '111',
+        'img_src': 'https://tse3-mm.cn.bing.net/th/id/OIP-C.dviaaw3BW9CNVigFcyo9igHaEO?rs=1&pid=ImgDetMain',
+        'model_name': 'FasterNet'
+    }
+    res = requests.post(url,json=jdata)
+    print(res.status_code)
+    print(res.text)
+    # auto_model_test(except_models=exceptmodel, test_image= img)
     # main()

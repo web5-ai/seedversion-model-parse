@@ -58,7 +58,7 @@ def get_img(img_url)->Union[Image.Image, None]:
             logger.info(f"图像 {img_url} 下载成功，大小为 {image.size}")
         except Exception as e:
             logger.error(f"下载图像 {img_url} 失败: {str(e)}")
-            return None
+            raise e
         return image
 
 def data_query(level:Literal["check_all", "check_user" ,"all","user","image"], **kwargs):
