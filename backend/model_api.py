@@ -17,6 +17,7 @@ from typing import Literal
 from utils.model_loader import ModelLoader
 from config import MODEL_CONFIG, IMAGE_CONFIG, OUTPUT_CONFIG, SYSTEM_CONFIG
 from utils.environment import check_dependencies, setup_environment
+import psutil
 def setup_logger(name="ModelAPI", level=SYSTEM_CONFIG["log_level"]):
     """
     设置日志记录器
@@ -70,18 +71,8 @@ class ModelAPI:
         """
         check_dependencies() # 检查依赖
         setup_environment() # 设置环境变量
-                
-        if device == 'cpu':
-            self.device = torch.device('cpu') # 使用cpu
-            logger.info("使用CPU进行推理")
-        elif device == 'cuda':
-            if torch.cuda.is_available(): # 检查cuda是否可用
-                self.device = torch.device('cuda') # 使用cuda
-                logger.info("使用GPU进行推理")
-            else: # 如果cuda不可用，使用cpu
-                self.device = torch.device('cpu') # 使用cpu
-                logger.info("GPU不可用，使用CPU进行推理")
-        self.loader = ModelLoader() # 初始化加载器
+
+        self.loader = ModelLoader(device=MODEL_CONFIG['device']) # 初始化加载器
 
     def generate_text_evals(self,output, components)->dict:
         """
@@ -132,20 +123,31 @@ class ModelAPI:
         Returns:
             预测结果的字典
         """
-
         try:
-            self.loader._load_model(model_name) # 加载模型
+            # 获取初始内存使用情况
+            process = psutil.Process(os.getpid())
+            initial_memory = process.memory_info().rss
+
+            self.loader.load_model(model_name) # 加载模型
             self.model_name = model_name # 设置模型名称
             size = 256 if model_name == 'Swin' else 224 # 设置图像大小，Swin需要256，其他模型需要224
             preprocessed_image = self.loader.preprocess_image(image, size) # 预处理图像
             # 进行预测
             self.loader.set_seed(50)
             output = self.loader.predict(preprocessed_image) # 进行预测
-
+            self.loader.unload_model() # 卸载模型
             # 生成文本报告
             component_names = MODEL_CONFIG["component_names"]
-
             evals = self.generate_text_evals(output,component_names) # 生成文本报告
+
+            # 获取最终内存使用情况
+            final_memory = process.memory_info().rss
+            # 计算内存消耗
+            memory_consumed = final_memory - initial_memory
+            # 转化为MB
+            memory_consumed = memory_consumed / (1024 * 1024)
+            logger.info(f"图像预测过程中内存消耗: {memory_consumed} MB")
+            evals['memory_cost'] = memory_consumed
         except Exception as e:
             logger.error(f"图像预测失败: {str(e)}")
             raise e

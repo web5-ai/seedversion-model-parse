@@ -29,8 +29,6 @@ async def predict(task_info: TaskModel) -> dict:
     '''
     预测接口，接收图像文件和模型名称，返回预测结果。
     Args:
-        timestamp: 任务上传时间（采样时间）需要约定时间格式便于转换存储
-        usr_id: 用户id
         image_src: 图像文件的URL或路径
         model_name: Literal['MPViT', 'ResNet', 'FasterNet', 'EfficientNet', 'Swin', 'VanillaNet']
 
@@ -38,6 +36,8 @@ async def predict(task_info: TaskModel) -> dict:
         {
             "oil": float,
             "protein": float,
+            'time_delta': float, # 模型预测时间，单位为s
+            'memory_cost': float, # 模型预测内存消耗，单位为MB
         }
     '''
     # 还没有约定好时间传递方式，不好转换，这里我先自定一个iso格式转换

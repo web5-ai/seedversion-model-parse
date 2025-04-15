@@ -1,0 +1,5 @@
+conda activate seed-parse
+
+python E:\Proj\seedversion-model-parse\backend\run.py
+
+conda deactivate

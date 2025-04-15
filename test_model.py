@@ -83,7 +83,7 @@ def load_model(model_name = 'FasterNet',model_path = None, device='cpu'):
     try:
         # 使用ModelLoader加载模型
         model_loader = ModelLoader(model_path, debug=True)
-        model_loader._load_model(model_name= model_name)
+        model_loader.load_model(model_name= model_name)
         model = model_loader.model
         model.to(device)
         model.eval()
@@ -272,7 +272,7 @@ def auto_model_test(except_models= [], test_image=None):
             continue
         r:dict = test_model(model_path, test_image=test_image)
         res.append(r)
-    with open ('output.txt', 'w') as f: # 输出结果到文件
+    with open ('./output.txt', 'w') as f: # 输出结果到文件
         for r in res: # 输出结果
             for key, value in r.items():
                 f.write(f"{key}: {value}\n")
@@ -365,9 +365,9 @@ def test_model(model_path = 'weights/ResNet18_best.pt', test_image = None):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"使用设备: {device}")
-    model_loader = ModelLoader(model_path, debug=True)
+    model_loader = ModelLoader(model_path, debug=True, device=device)
     model_name = model_path.split('\\')[-1].split('.')[0] # 从模型路径中提取模型名称
-    model_loader._load_model(model_name= model_name) # 这里可以根据模型文件名称选择模型结构，这里默认选择ResNet
+    model_loader.load_model(model_name= model_name) # 这里可以根据模型文件名称选择模型结构，这里默认选择ResNet
     if model_loader.model.state_dict() is None:
         logger.error(f"模型加载失败: {model_path}")
         return
@@ -387,20 +387,21 @@ def test_model(model_path = 'weights/ResNet18_best.pt', test_image = None):
         }
 
 if __name__ == "__main__":
-    # test_model('weights\VanillaNet.pt')
-    # test_model('weights\FasterNet.pt')
-    # exceptmodel = []
-    # img = r'tests\test_images\image_custom.png'
-    url = 'http://47.100.53.207:8000/predict'
-    import requests
-    jdata = {
-        "timestamp": '2025-04-08T08:44:54.169Z',
-        'usr_id': '111',
-        'img_src': 'https://tse3-mm.cn.bing.net/th/id/OIP-C.dviaaw3BW9CNVigFcyo9igHaEO?rs=1&pid=ImgDetMain',
-        'model_name': 'FasterNet'
-    }
-    res = requests.post(url,json=jdata)
-    print(res.status_code)
-    print(res.text)
-    # auto_model_test(except_models=exceptmodel, test_image= img)
+    exceptmodel = []
+    img = r'tests\test_images\image_custom.png'
+    auto_model_test(except_models=exceptmodel, test_image= img)
     # main()
+    # url = 'http://47.100.53.207:8000/'
+    # import requests
+    # res = requests.get(url)
+    # print(res.status_code)
+    # print(res.text)
+    # jdata = {
+    #     "timestamp": '2025-04-08T08:44:54.169Z',
+    #     'usr_id': '111',
+    #     'img_src': 'https://tse3-mm.cn.bing.net/th/id/OIP-C.dviaaw3BW9CNVigFcyo9igHaEO?rs=1&pid=ImgDetMain',
+    #     'model_name': 'FasterNet'
+    # }
+    # res = requests.post(url,json=jdata)
+    # print(res.status_code)
+    # print(res.text)

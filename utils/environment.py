@@ -5,6 +5,7 @@ import os
 import sys
 import pkg_resources
 import logging
+from config import MODEL_CONFIG
 
 logger = logging.getLogger("Environment")
 
@@ -71,8 +72,10 @@ def setup_environment():
         import torch
         if torch.cuda.is_available():
             logger.info(f"CUDA可用: {torch.cuda.get_device_name(0)}")
+            MODEL_CONFIG["device"] = "cuda"
         else:
             logger.info("CUDA不可用，将使用CPU进行计算")
+            MODEL_CONFIG["device"] = "cpu"
     except Exception as e:
         logger.warning(f"检查CUDA状态时出错: {str(e)}")
     

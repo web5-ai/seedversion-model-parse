@@ -7,6 +7,7 @@ MODEL_CONFIG = {
     "model_path": "weights/",
     "expected_components": 2,
     "component_names": ["蛋白质", "油脂"],
+    "device": "cuda" # 在setup_environment函数中初始化设置
     # "quality_thresholds": {
     #     "油酸": 0.5,  # 油酸含量高于0.5为优质
     #     "亚油酸": 0.3  # 亚油酸含量高于0.3为营养价值高

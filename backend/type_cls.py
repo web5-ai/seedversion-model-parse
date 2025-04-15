@@ -10,7 +10,5 @@ class TaskModel(BaseModel):
     '''
     用于接收任务json的数据类
     '''
-    timestamp: datetime 
-    usr_id:str
     img_src:str
     model_name:Literal['MPViT', 'ResNet', 'FasterNet', 'EfficientNet', 'Swin', 'VanillaNet']

@@ -14,6 +14,7 @@ import traceback
 
 # 设置日志
 logger = logging.getLogger("ModelLoader")
+logger.propagate = False
 if not logger.handlers:
     handler = logging.StreamHandler()
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -24,7 +25,7 @@ class ModelLoader:
     """
     模型加载器，用于加载预训练模型
     """
-    def __init__(self, model_path=None, debug=False):
+    def __init__(self, model_path=None, debug=False, device='cpu'):
         """
         初始化模型加载器
 
@@ -35,6 +36,7 @@ class ModelLoader:
         self.model_path = model_path
         self.debug = debug
         self.model = None
+        self.device = device
 
         
     def _analyze_state_dict(self):
@@ -135,15 +137,13 @@ class ModelLoader:
         torch.backends.cudnn.benchmark = False # 关闭动态卷积算法
         logger.info(f"已设置随机种子: {seed}")
 
-    def _load_model(self, model_name:MODEL_OPTIONS):
+    def load_model(self, model_name:MODEL_OPTIONS):
         """
         加载预训练模型
 
         Args:
             model: 用来选择加载状态字典的模型结构，默认为ResNet
         """
-        
-        logger.info(f"正在加载模型: {self.model_path}")
         
         try:
 
@@ -167,12 +167,17 @@ class ModelLoader:
             # self.model = model_class()  # 创建模型实例
             try:
                 model_class = globals()[model_name]  # 尝试从全局变量中获取模型类
-                self.model = model_class()  # 创建模型实例
+                self.model = model_class(device = self.device)  # 创建模型实例
+                self.model.to(self.device)
+                param = next(self.model.parameters())
+                logger.info(f'模型加载到{param.device}设备上')
             except KeyError:
                 raise ValueError(f"不支持的模型: {model_name}")
             model_path = os.path.join(MODEL_CONFIG['model_path'], f'{model_name}.pt')
-
-            self.state_dict = self.model.load_model_weight(model_path) # 这里是模型结构的状态字典，不是加载的状态字典
+            if self.debug: # 如果是debug模式才存储状态字典
+                self.state_dict = self.model.load_model_weight(model_path) # 这里是模型结构的状态字典，不是加载的状态字典
+            else:
+                self.model.load_model_weight(model_path)
             # # 状态字典加载用模型封装的加载方法
             # self.state_dict = torch.load(model_path, map_location=torch.device('cpu'))
             # # 加载和model_name同名的模型
@@ -189,6 +194,16 @@ class ModelLoader:
         self.model.eval()
         logger.info("模型加载完成，已设置为评估模式")
     
+    def unload_model(self):
+        """
+        卸载模型
+        """
+        if self.model is not None:
+            del self.model  # 删除模型实例
+            self.model = None  # 将模型设置为None
+            self.model_name = None  # 将模型名称设置为None
+            logger.info("模型已卸载")
+
     def preprocess_image(self, image, size=224):
         """
         预处理图像
@@ -209,6 +224,10 @@ class ModelLoader:
         ])
         
         image_tensor = transform(image).unsqueeze(0)
+
+        image_tensor = image_tensor.to(self.device)
+        logger.info(f"图像张量处于{image_tensor.device}设备上")
+
         return image_tensor
     
     def predict(self, image_tensor):
