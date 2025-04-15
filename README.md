@@ -15,9 +15,7 @@ swin模型，训练方式，输入图像是256x256，窗口大小8x8
 ### 系统要求
 
 - Python 3.8+
-- PyTorch 1.12.0
-- torchvision 0.13.0
-- 其他依赖库（详见requirements.txt）
+- 依赖库详见requirements.txt
 
 ### 硬件要求
 
@@ -66,58 +64,57 @@ python test_model.py --image path/to/your/image.jpg
 
 ```
 mendianyunying/pythonVesion/
-├── config.py           # 配置文件
-├── models/             # 模型定义
-│   └── model_loader.py # 模型加载器
-├── utils/              # 工具函数
-│   ├── environment.py  # 环境检查
-│   └── image_processor.py # 图像处理
-├── tests/              # 测试文件
-│   └── test_images/    # 测试图像
-├── weights/            # 预训练模型权重
-├── results/            # 结果输出目录
-├── requirements.txt    # 依赖库列表
-├── setup.sh            # 环境设置脚本
-└── test_model.py       # 测试脚本
+├── config.py                 # 配置文件
+├── backend/                  # 后端接口
+│   ├── main.py               # fastapi运行入口
+│   └── run.py                # 项目运行配置，由main.py调用
+│   └── model_api.py          # 模型api，从model_loader封装，直接提供预测接口
+│   └── tools.py              # 后台用到的工具函数都在这，包括下载图像、存储等
+│   └── type_cls.py           # 定义接口参数的类
+│   └── start_service.bat     # 项目一键运行脚本，根据需求和环境进行配置
+├── models/                   # 模型定义
+│   ├── __init__.py           # 初始化，定义了对外提供的模型接口
+│   └── model_zoo.py          # 客户的模型定义文件，包含了不同模型的定义
+|   └── build_mpvit.py        # 客户定义的MPViT模型
+|   └── build_vanillanet.py   # 客户定义的Vanillanet模型
+|   └── build_swinv2.py       # 客户定义的Swin模型
+|   └── swinv2_config.py      # 客户定义的Swin模型配置文件
+|   └── swinv2_config_large.py# 客户定义的Swin模型配置文件
+|   └── 其他模型文件           # 根据客户提供的模型封装了__init__.py中的接口
+├── utils/                    # 工具函数
+│   ├── environment.py        # 环境检查
+│   └── image_processor.py    # 图像处理
+│   └── model_loader.py       # 模型加载器，从models里加载模型，封装了预处理、预测等功能
+├── tests/                    # 测试文件
+│   └── test_images/          # 测试图像
+├── weights/                  # 预训练模型权重，不上传
+├── results/                  # 结果输出目录
+├── requirements.txt          # 依赖库列表
+├── setup.sh                  # 环境设置脚本
+├── README.md                 # 项目说明文档
+├── unzip.sh                  # 解压脚本，项目上传到服务器部署时用于解压和依赖下载的脚本
+├── zip.ps1                   # 训练脚本，将项目打包上传到服务器的脚本
+└── test_model.py             # 测试脚本，包含自动化测试auto_model_test()，可以自动使用测试图像测试所有模型
 ```
 
-### 调试模式
+### 调试模式&环境检查
 
-可以通过在 `test_model.py`中添加 `--debug`参数启用调试模式：
-
-```bash
-python test_model.py --debug
-```
-
-### 环境检查
-
-检查环境是否满足运行要求：
+可以通过在 `test_model.py`中添加 `--debug`参数启用调试模式，不推荐使用：
+建议查看test_model下main里的测试函数，调整为auto_model_test()，可以自动测试所有模型以及环境配置。
 
 ```bash
-python test_model.py --check-env
+python test_model.py
 ```
 
 ## 关键技术
 
-1. **深度学习模型**: 使用ResNet50作为基础模型，通过迁移学习适应油菜籽成分分析任务。
+1. **深度学习模型**: 使用各类预训练的模型，进行油菜籽的油脂和蛋白质含量预测。
 2. **模型加载机制**: 实现了灵活的模型加载器，可以自动识别不同格式的模型文件并加载。
 3. **图像预处理**: 标准化的图像预处理流程，确保输入模型的图像具有一致的格式和特征分布。
-4. **结果可视化**: 提供文本报告和图表可视化，直观展示分析结果。
 
 ## 当前模型信息
 
-根据 `weights/model_info.txt`，当前使用的模型信息如下：
-
-- **模型类型**: ResNet
-- **模型大小**: 392.04 MB
-- **总参数量**: 25,557,032
-- **可训练参数量**: 25,557,032
-- **输入尺寸**: (224, 224)
-- **输入通道**: 3 (RGB)
-- **输出维度**: 5（对应5种油菜籽成分）
-- **预处理参数**:
-  - 均值: [0.485, 0.456, 0.406]
-  - 标准差: [0.229, 0.224, 0.225]
+运行后会在 `/weights`目录下生成各个模型的 `state_dict_info` 和 `model_info`文件，包含模型结构和状态字典的信息，如果一致说明模型完全加载（不一致会报错，加载时采用严格模式）。
 
 ## 入门必备基础
 
