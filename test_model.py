@@ -272,7 +272,7 @@ def auto_model_test(except_models= [], test_image=None):
             continue
         r:dict = test_model(model_path, test_image=test_image)
         res.append(r)
-    with open ('./output.txt', 'w') as f: # 输出结果到文件
+    with open ('./results/output.txt', 'w') as f: # 输出结果到文件
         for r in res: # 输出结果
             for key, value in r.items():
                 f.write(f"{key}: {value}\n")

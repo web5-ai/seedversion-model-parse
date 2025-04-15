@@ -136,6 +136,7 @@ class ModelLoader:
         torch.backends.cudnn.deterministic = True # 固定卷积算法以提高性能
         torch.backends.cudnn.benchmark = False # 关闭动态卷积算法
         logger.info(f"已设置随机种子: {seed}")
+        return seed
 
     def load_model(self, model_name:MODEL_OPTIONS):
         """

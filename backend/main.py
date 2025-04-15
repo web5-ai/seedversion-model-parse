@@ -1,10 +1,15 @@
 import asyncio
+import logging
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from type_cls import TaskModel
 from tools import *
 from model_api import ModelAPI
 import datetime
+from run import run_server
+
+# 获取uvicorn的日志记录器
+logger = logging.getLogger("uvicorn")
 
 app = FastAPI()
 
@@ -13,6 +18,7 @@ model_api = ModelAPI()
 
 @app.get("/")
 def root():
+    logger.info("访问根路径")
     return {"油菜籽fastapi后台"}
 
 # @app.get("/image")
@@ -40,32 +46,34 @@ async def predict(task_info: TaskModel) -> dict:
             'memory_cost': float, # 模型预测内存消耗，单位为MB
         }
     '''
-    # 还没有约定好时间传递方式，不好转换，这里我先自定一个iso格式转换
-    # timestamp = task_info.timestamp.strftime("%Y年%m月%d日%H时%M分%S秒")
+    logger.info(f"收到预测请求: 模型={task_info.model_name}, 图像源={task_info.img_src}")
     
     # 读取上传的图像文件，使用asyncio.to_thread在单独线程中运行同步函数
     try:
+        logger.info("开始下载/读取图像")
         img = await asyncio.to_thread(get_img, task_info.img_src)
+        logger.info("图像获取成功")
     except Exception as e:
-        return {"模型预测失败_图片下载失败": e}
+        logger.error(f"图像获取失败: {str(e)}")
+        return {"模型预测失败_图片下载失败": str(e)}
+    
     # 模型预测，使用asyncio.to_thread在单独线程中运行同步函数
     try:
+        logger.info(f"开始使用{task_info.model_name}模型进行预测")
         s = datetime.datetime.now()
         evals = await asyncio.to_thread(model_api.eval_image, img, task_info.model_name)  # 得到字典
         e = datetime.datetime.now()
-        evals['time_delta'] = (e - s).total_seconds()
+        time_delta = (e - s).total_seconds()
+        evals['time_delta'] = time_delta
+        evals['model'] = task_info.model_name
+        logger.info(f"{task_info.model_name}模型预测完成，耗时: {time_delta}秒，结果如下")
+        for k,v in evals.items():
+            logger.info(f"{k}: {v}")
     except Exception as e:
-        return {"模型预测失败": e}
-    # 保存任务到数据库，返回任务id，用于查询任务状态和结果
-    # task_data = {
-    #     'timestamp': timestamp,
-    #     'usr_id': task_info.usr_id,
-    #     'image': img,
-    #     'model': task_info.model_name,
-    #     'evals': evals
-    # }
-    # 使用asyncio.to_thread在单独线程中运行同步函数
-    # await asyncio.to_thread(save_task, task_data)  # 保存为pickle
+        logger.error(f"模型预测失败: {str(e)}")
+        return {"模型预测失败": str(e)}
+    
+    # 保存任务到数据库的代码已被注释，如果需要可以取消注释并添加日志
     
     return evals
 
@@ -127,7 +135,5 @@ async def predict(task_info: TaskModel) -> dict:
 #         user_uploads = data_query("user",usr_id=usr_id) # 得到用户上传的所有图片和值
 #     return user_uploads
 
-# if __name__ == "__main__":
-#     import uvicorn
-#     # 访问127.0.0.1:8000/docs查看文档
-#     uvicorn.run(app, host="0.0.0.0", port=8000, reload=True, log_level='debug')
+if __name__ == "__main__":
+    run_server()

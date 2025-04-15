@@ -124,30 +124,39 @@ class ModelAPI:
             预测结果的字典
         """
         try:
-            # 获取初始内存使用情况
-            process = psutil.Process(os.getpid())
-            initial_memory = process.memory_info().rss
+            # 检查是否有可用的CUDA设备
+            if MODEL_CONFIG['device'] == 'cuda':
+                # 获取初始显存使用情况
+                initial_memory = torch.cuda.memory_allocated()
+            else:
+                logger.warning("未使用CUDA，无法监控显存消耗。")
+                initial_memory = 0
 
             self.loader.load_model(model_name) # 加载模型
             self.model_name = model_name # 设置模型名称
             size = 256 if model_name == 'Swin' else 224 # 设置图像大小，Swin需要256，其他模型需要224
             preprocessed_image = self.loader.preprocess_image(image, size) # 预处理图像
             # 进行预测
-            self.loader.set_seed(50)
+            seed = self.loader.set_seed(50)
             output = self.loader.predict(preprocessed_image) # 进行预测
             self.loader.unload_model() # 卸载模型
             # 生成文本报告
             component_names = MODEL_CONFIG["component_names"]
             evals = self.generate_text_evals(output,component_names) # 生成文本报告
 
-            # 获取最终内存使用情况
-            final_memory = process.memory_info().rss
-            # 计算内存消耗
-            memory_consumed = final_memory - initial_memory
-            # 转化为MB
-            memory_consumed = memory_consumed / (1024 * 1024)
-            logger.info(f"图像预测过程中内存消耗: {memory_consumed} MB")
+            if torch.cuda.is_available():
+                # 获取最终显存使用情况
+                final_memory = torch.cuda.memory_allocated()
+                # 计算显存消耗
+                memory_consumed = final_memory - initial_memory
+                # 转化为MB
+                memory_consumed = memory_consumed / (1024 * 1024)
+                logger.info(f"图像预测过程中显存消耗: {memory_consumed} MB")
+            else:
+                memory_consumed = 0
+
             evals['memory_cost'] = memory_consumed
+            evals['seed'] = seed
         except Exception as e:
             logger.error(f"图像预测失败: {str(e)}")
             raise e
