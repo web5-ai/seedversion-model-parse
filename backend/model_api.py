@@ -137,14 +137,14 @@ class ModelAPI:
             size = 256 if model_name == 'Swin' else 224 # 设置图像大小，Swin需要256，其他模型需要224
             preprocessed_image = self.loader.preprocess_image(image, size) # 预处理图像
             # 进行预测
-            seed = self.loader.set_seed(50)
+            seed = self.loader.set_seed(SYSTEM_CONFIG['default_seed'])
             output = self.loader.predict(preprocessed_image) # 进行预测
             self.loader.unload_model() # 卸载模型
             # 生成文本报告
             component_names = MODEL_CONFIG["component_names"]
             evals = self.generate_text_evals(output,component_names) # 生成文本报告
 
-            if torch.cuda.is_available():
+            if torch.cuda.is_available():   
                 # 获取最终显存使用情况
                 final_memory = torch.cuda.memory_allocated()
                 # 计算显存消耗

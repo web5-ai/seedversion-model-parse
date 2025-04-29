@@ -31,8 +31,36 @@ OUTPUT_CONFIG = {
 
 # 系统配置
 SYSTEM_CONFIG = {
-    "default_seed": 42,
+    "default_seed": 123,
     "log_level": "INFO",
     "log_format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    "save_path": "db/" # 数据存储路径
+}
+
+# 后台配置
+BACKEND_CONFIG = {
+    # 日志配置
+    "log_dir": "./logs",  # 日志目录
+    "images_dir": "",  # 图像目录，每次会在runpy重新设置
+    "log_format": "%(asctime)s - %(levelname)s - %(message)s",
+    "log_date_format": "%Y-%m-%d %H:%M:%S",
+    "log_encoding": "utf-8",  # 日志文件编码
+
+    # 服务器配置
+    "host": "0.0.0.0",
+    "port": 8000,
+    "reload": True,
+
+    # 内存监控配置
+    "memory_limit": 1024 * 1024 * 10000,  # 10000MB
+    "memory_check_interval": 5,  # 内存检查间隔（秒）
+
+    # 邮件配置
+    "smtp_server": "smtp.qq.com",
+    "smtp_port": 587,
+    "smtp_username": "851680026@qq.com",
+    "smtp_password": "krrlmqusmxkdbcdg",
+    "recipient_email": "851680026@qq.com",
+
+    # 主线程检查间隔
+    "main_thread_check_interval": 60  # 主线程检查间隔（秒）
 }

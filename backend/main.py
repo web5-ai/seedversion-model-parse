@@ -51,7 +51,7 @@ async def predict(task_info: TaskModel) -> dict:
     # 读取上传的图像文件，使用asyncio.to_thread在单独线程中运行同步函数
     try:
         logger.info("开始下载/读取图像")
-        img = await asyncio.to_thread(get_img, task_info.img_src)
+        img, save_path = await asyncio.to_thread(get_img, task_info.img_src, False) # 路径先留着，不一定用得到
         logger.info("图像获取成功")
     except Exception as e:
         logger.error(f"图像获取失败: {str(e)}")

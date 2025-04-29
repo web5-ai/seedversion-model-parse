@@ -13,16 +13,21 @@ from email.header import Header
 import threading
 import sys
 import time
+import json
+from config import MODEL_CONFIG, IMAGE_CONFIG, OUTPUT_CONFIG, SYSTEM_CONFIG, BACKEND_CONFIG
 
 # 生成带时间戳的日志文件名
 timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-log_path = f"./logs/{timestamp}"
+log_path = os.path.join(BACKEND_CONFIG['log_dir'], timestamp)
+BACKEND_CONFIG["images_dir"] = os.path.join(log_path, "images") # 每次启动时更新图像目录
 # 检查日志路径是否存在，如果不存在则创建
 if not os.path.exists(log_path):
     os.makedirs(log_path)
+if not os.path.exists(BACKEND_CONFIG["images_dir"]): # 检查图像目录是否存在，如果不存在则创建
+    os.makedirs(BACKEND_CONFIG["images_dir"])
 
 # 只使用一个日志文件
-backend_log = f"{log_path}/backend.log"
+backend_log = os.path.join(log_path, "backend.log")
 
 # 配置uvicorn日志
 logging_config = {
@@ -32,8 +37,8 @@ logging_config = {
     "formatters": {
         "default": {
             "()": "uvicorn.logging.DefaultFormatter",
-            "fmt": "%(asctime)s - %(levelname)s - %(message)s",
-            "datefmt": "%Y-%m-%d %H:%M:%S",
+            "fmt": BACKEND_CONFIG["log_format"],
+            "datefmt": BACKEND_CONFIG["log_date_format"],
         },
     },
     "handlers": {
@@ -41,6 +46,7 @@ logging_config = {
             "formatter": "default",
             "class": "logging.FileHandler",
             "filename": backend_log,
+            "encoding": BACKEND_CONFIG["log_encoding"],
         },
         "console": {
             "formatter": "default",
@@ -57,14 +63,13 @@ logging_config = {
     },
 }
 
-# 配置内存监控
-MEMORY_LIMIT = 1024 * 1024 * 10000  # 10000MB
-# 配置邮件信息
-SMTP_SERVER = 'smtp.qq.com'
-SMTP_PORT = 587
-SMTP_USERNAME = '851680026@qq.com'
-SMTP_PASSWORD = 'krrlmqusmxkdbcdg'
-RECIPIENT_EMAIL = '851680026@qq.com'
+# 从配置中获取内存监控和邮件配置
+MEMORY_LIMIT = BACKEND_CONFIG["memory_limit"]
+SMTP_SERVER = BACKEND_CONFIG["smtp_server"]
+SMTP_PORT = BACKEND_CONFIG["smtp_port"]
+SMTP_USERNAME = BACKEND_CONFIG["smtp_username"]
+SMTP_PASSWORD = BACKEND_CONFIG["smtp_password"]
+RECIPIENT_EMAIL = BACKEND_CONFIG["recipient_email"]
 
 def send_email(subject, message):
     msg = MIMEText(message, 'plain', 'utf-8')
@@ -112,52 +117,71 @@ def monitor_memory():
             # python = sys.executable
             # os.execv(python, [python] + sys.argv)
 
-        # 每隔五秒检查一次
-        time.sleep(5)
+        # 使用配置中的内存检查间隔
+        time.sleep(BACKEND_CONFIG["memory_check_interval"])
 
-def heartbeat():
-    """
-    心跳函数，定期记录日志以避免系统休眠
-    """
-    # 获取uvicorn的日志记录器
-    uvicorn_logger = logging.getLogger("uvicorn")
-    heartbeat_count = 0
-    while True:
-        heartbeat_count += 1
-        uvicorn_logger.info(f"Heartbeat #{heartbeat_count} - 服务正常运行中")
-        # 每60秒发送一次心跳
-        time.sleep(60)
+# def heartbeat(interval=60):
+#     """
+#     心跳函数，定期记录日志以避免系统休眠
+#     Args:
+#         interval: 心跳间隔，单位为秒
+#     """
+#     uvicorn_logger = logging.getLogger("uvicorn")
+#     heartbeat_count = 0
+#     while True:
+#         heartbeat_count += 1
+#         uvicorn_logger.info(f"Heartbeat #{heartbeat_count} - 服务正常运行中")
+#         time.sleep(interval)
 
 def run_server():
     # 127.0.0.1:8000打开网页
     # 访问127.0.0.1:8000/docs查看文档
 
+    # 打印配置信息
+    print("系统配置信息:")
+    print(f"MODEL_CONFIG: {json.dumps(MODEL_CONFIG, indent=2, ensure_ascii=False, default=str)}")
+    print(f"IMAGE_CONFIG: {json.dumps(IMAGE_CONFIG, indent=2, ensure_ascii=False, default=str)}")
+    print(f"OUTPUT_CONFIG: {json.dumps(OUTPUT_CONFIG, indent=2, ensure_ascii=False, default=str)}")
+    print(f"SYSTEM_CONFIG: {json.dumps(SYSTEM_CONFIG, indent=2, ensure_ascii=False)}")
+    print(f"BACKEND_CONFIG: {json.dumps(BACKEND_CONFIG, indent=2, ensure_ascii=False)}")
+
     # 使用自定义日志配置启动 uvicorn
     print("Starting uvicorn server...")
 
-    # 启动uvicorn服务器
-    server_thread = threading.Thread(
-        target=lambda: uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False, log_config=logging_config)
-    )
-    server_thread.daemon = True
-    server_thread.start()
+    # # 启动内存监控线程
+    # memory_thread = threading.Thread(target=monitor_memory)
+    # memory_thread.daemon = True
+    # memory_thread.start()
 
-    # 等待uvicorn启动完成
-    time.sleep(2)
-
-    # 获取uvicorn的日志记录器
+    # 获取uvicorn的日志记录器（提前配置）
     uvicorn_logger = logging.getLogger("uvicorn")
-    uvicorn_logger.info("Starting heartbeat thread")
 
-    # 启动心跳线程，避免系统休眠
-    heartbeat_thread = threading.Thread(target=heartbeat)
-    heartbeat_thread.daemon = True  # 设置为守护线程，主线程结束时自动结束
-    heartbeat_thread.start()
+    # 记录配置信息到日志
+    uvicorn_logger.info("系统配置信息:")
+    uvicorn_logger.info(f"MODEL_CONFIG: {MODEL_CONFIG}")
+    uvicorn_logger.info(f"IMAGE_CONFIG: {IMAGE_CONFIG}")
+    uvicorn_logger.info(f"OUTPUT_CONFIG: {OUTPUT_CONFIG}")
+    uvicorn_logger.info(f"SYSTEM_CONFIG: {SYSTEM_CONFIG}")
+    uvicorn_logger.info(f"BACKEND_CONFIG: {BACKEND_CONFIG}")
 
-    # 防止主线程退出
+    # # 心跳包间隔（秒）- 已注释
+    # HEARTBEAT_INTERVAL = 3600
+    # uvicorn_logger.info(f"Starting heartbeat thread with interval: {HEARTBEAT_INTERVAL} seconds")
+
+    # # 启动心跳线程，避免系统休眠 - 已注释
+    # heartbeat_thread = threading.Thread(target=lambda: heartbeat(interval=HEARTBEAT_INTERVAL))
+    # heartbeat_thread.daemon = True  # 设置为守护线程，主线程结束时自动结束
+    # heartbeat_thread.start()
+
     try:
-        while True:
-            time.sleep(60)  # 每小时检查一次
+        # 在主线程中运行uvicorn服务器
+        uvicorn.run(
+            "main:app",
+            host=BACKEND_CONFIG["host"],
+            port=BACKEND_CONFIG["port"],
+            reload=BACKEND_CONFIG["reload"],
+            log_config=logging_config
+        )
     except KeyboardInterrupt:
         uvicorn_logger.info("Server shutting down...")
         sys.exit(0)

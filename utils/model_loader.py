@@ -129,8 +129,8 @@ class ModelLoader:
         """
         if seed is None:
             seed = int(datetime.now().timestamp())#如果为none就用时间戳代替
-        random.seed(seed)
-        np.random.seed(seed)
+        # random.seed(seed)
+        # np.random.seed(seed)
         torch.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
         torch.backends.cudnn.deterministic = True # 固定卷积算法以提高性能
