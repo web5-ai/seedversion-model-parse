@@ -7,19 +7,14 @@ import sys
 import random
 import numpy as np
 import torch
-import logging
 import ctypes
 import platform
 
-# 设置日志
-logger = logging.getLogger("ForceEnv")
-logger.propagate = False
-if not logger.handlers:
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-    logger.setLevel(logging.INFO)
+# 导入集中的日志配置
+from utils.logging_config import get_logger
+
+# 获取日志记录器
+logger = get_logger("ForceEnv")
 
 # 设置是否输出详细日志
 VERBOSE_LOGGING = False
@@ -147,5 +142,6 @@ def force_environment(seed=123):
 
     return env_settings
 
-# 在导入模块时自动执行
-force_environment()
+# 不再自动执行，避免重复调用
+# 如果需要自动执行，请取消下面的注释
+# force_environment()

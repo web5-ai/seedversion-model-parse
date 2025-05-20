@@ -175,7 +175,25 @@ class ModelLoader:
                 logger.info(f'模型加载到{param.device}设备上')
             except KeyError:
                 raise ValueError(f"不支持的模型: {model_name}")
-            model_path = os.path.join(MODEL_CONFIG['model_path'], f'{model_name}.pt')
+            # 如果self.model_path已经指定，优先使用它
+            if self.model_path and os.path.exists(self.model_path):
+                model_path = self.model_path
+            else:
+                # 否则使用配置中的路径
+                model_path = os.path.join(MODEL_CONFIG['model_path'], f'{model_name}.pt')
+
+            # 确保使用绝对路径
+            if not os.path.isabs(model_path):
+                # 获取项目根目录
+                root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                model_path = os.path.join(root_dir, model_path)
+
+            logger.info(f"加载模型: {model_path}")
+
+            # 检查模型文件是否存在
+            if not os.path.exists(model_path):
+                raise FileNotFoundError(f"模型文件不存在: {model_path}")
+
             if self.debug: # 如果是debug模式才存储状态字典
                 self.state_dict = self.model.load_model_weight(model_path) # 这里是模型结构的状态字典，不是加载的状态字典
             else:

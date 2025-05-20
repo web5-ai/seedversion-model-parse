@@ -3,22 +3,21 @@
 '''
 
 import uvicorn
-import logging
 from datetime import datetime
 import os
 import psutil
 import smtplib
 from email.mime.text import MIMEText
 from email.header import Header
-import threading
 import sys
 import time
 import json
 import torch
-from config import MODEL_CONFIG, IMAGE_CONFIG, OUTPUT_CONFIG, SYSTEM_CONFIG, BACKEND_CONFIG
+from config import SYSTEM_CONFIG, BACKEND_CONFIG
+from utils.logging_config import get_logger
 
 def init_logging():
-        
+
     # 生成带时间戳的日志文件名
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
     log_path = os.path.join(BACKEND_CONFIG['log_dir'], timestamp)
@@ -34,7 +33,7 @@ def init_logging():
     logging_config = {
         "version": 1,
         # 禁用已有的日志器，防止重复输出
-        "disable_existing_loggers": True,
+        "disable_existing_loggers": False,
         "formatters": {
             "default": {
                 "()": "uvicorn.logging.DefaultFormatter",
@@ -58,7 +57,26 @@ def init_logging():
             "uvicorn": {
                 "handlers": ["file", "console"],
                 "level": "INFO",
-                # 防止日志向上传播到根日志器
+                "propagate": False,
+            },
+            "Backend": {
+                "handlers": ["file", "console"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "ForceEnv": {
+                "handlers": ["file", "console"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "ModelAPI": {
+                "handlers": ["file", "console"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "Backend/Tools": {
+                "handlers": ["file", "console"],
+                "level": "INFO",
                 "propagate": False,
             },
         },
@@ -74,6 +92,9 @@ SMTP_PASSWORD = BACKEND_CONFIG["smtp_password"]
 RECIPIENT_EMAIL = BACKEND_CONFIG["recipient_email"]
 
 def send_email(subject, message):
+    # 获取日志记录器
+    logger = get_logger("Backend")
+
     msg = MIMEText(message, 'plain', 'utf-8')
     msg['From'] = SMTP_USERNAME
     msg['To'] = RECIPIENT_EMAIL
@@ -85,13 +106,13 @@ def send_email(subject, message):
         server.login(SMTP_USERNAME, SMTP_PASSWORD)
         server.sendmail(SMTP_USERNAME, RECIPIENT_EMAIL, msg.as_string())
         server.quit()
-        logging.getLogger("uvicorn").info("Email sent successfully.")
+        logger.info("Email sent successfully.")
     except Exception as e:
-        logging.getLogger("uvicorn").error(f"Failed to send email: {e}")
+        logger.error(f"Failed to send email: {e}")
 
 def monitor_memory():
-    # 获取uvicorn的日志记录器
-    uvicorn_logger = logging.getLogger("uvicorn")
+    # 获取日志记录器
+    logger = get_logger("Backend")
     main_process = psutil.Process(os.getpid())
     last_memory_record = 0
 
@@ -109,11 +130,11 @@ def monitor_memory():
 
         if abs(total_memory_usage - last_memory_record) > 1024 * 1024 * 500:  # 500MB
             last_memory_record = total_memory_usage
-            # 使用uvicorn的日志记录器
-            uvicorn_logger.info(f"Current total memory usage: {total_memory_usage / (1024 * 1024)} MB, last memory record: {last_memory_record / (1024 * 1024)} MB")
+            # 使用我们的日志记录器
+            logger.info(f"Current total memory usage: {total_memory_usage / (1024 * 1024)} MB, last memory record: {last_memory_record / (1024 * 1024)} MB")
 
         if total_memory_usage > MEMORY_LIMIT:
-            uvicorn_logger.warning(f"Memory usage exceeded limit: {total_memory_usage} bytes, restarting the project.")
+            logger.warning(f"Memory usage exceeded limit: {total_memory_usage} bytes, restarting the project.")
             send_email("Memory Limit Exceeded", f"Project is restarting due to memory usage exceeding {MEMORY_LIMIT} bytes.")
             # # 重启项目
             # python = sys.executable
@@ -154,23 +175,31 @@ def run_server():
     # memory_thread.daemon = True
     # memory_thread.start()
 
-    # 获取uvicorn的日志记录器（提前配置）
-    uvicorn_logger = logging.getLogger("uvicorn")
+    # 获取日志记录器
+    logger = get_logger("Backend")
 
     # 记录配置信息到日志（简化版本）
-    uvicorn_logger.info("系统已加载配置")
+    logger.info("系统已加载配置")
 
     # 运行环境测试
-    uvicorn_logger.info("开始运行环境测试...")
+    logger.info("开始运行环境测试...")
     try:
+        # 确保在项目根目录下运行
+        root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        os.chdir(root_dir)
+        logger.info(f"切换工作目录到项目根目录: {root_dir}")
+
         # 导入ModelAPI，确保正确的导入路径
-        sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        sys.path.append(root_dir)
         from backend.model_api import ModelAPI
 
         # 初始化ModelAPI
+        logger.info("初始化ModelAPI...")
         model_api = ModelAPI()
+        logger.info("ModelAPI初始化完成")
 
         # 运行环境测试，使用默认模型和种子
+        logger.info("运行环境测试...")
         env_test_result = model_api.run_env_test()
 
         # 将结果保存到日志目录
@@ -179,18 +208,18 @@ def run_server():
             json.dump(env_test_result, f, ensure_ascii=False, indent=4)
 
         # 记录关键信息到日志
-        uvicorn_logger.info(f"环境测试结果已保存至: {env_test_file}")
-        uvicorn_logger.info(f"模型: {env_test_result['model'].get('name', '未知')}, 参数数量: {env_test_result['model'].get('total_params', '未知')}")
+        logger.info(f"环境测试结果已保存至: {env_test_file}")
+        logger.info(f"模型: {env_test_result['model'].get('name', '未知')}, 参数数量: {env_test_result['model'].get('total_params', '未知')}")
         if 'prediction' in env_test_result and 'protein' in env_test_result['prediction'] and 'oil' in env_test_result['prediction']:
             prediction = env_test_result['prediction']
-            uvicorn_logger.info(f"环境测试完成: 蛋白质={prediction['protein']:.4f}, 油脂={prediction['oil']:.4f}, 哈希={prediction.get('hash', '未知')[:8]}...")
+            logger.info(f"环境测试完成: 蛋白质={prediction['protein']:.4f}, 油脂={prediction['oil']:.4f}, 哈希={prediction.get('hash', '未知')[:8]}...")
         else:
-            uvicorn_logger.info("环境测试完成")
+            logger.info("环境测试完成")
 
         # 记录CUDA设备信息
         if 'environment' in env_test_result and env_test_result['environment'].get('cuda_available', False):
             env = env_test_result['environment']
-            uvicorn_logger.info(f"CUDA可用: {env.get('gpu_name', '未知')}")
+            logger.info(f"CUDA可用: {env.get('gpu_name', '未知')}")
 
         # 释放资源
         del model_api
@@ -198,11 +227,11 @@ def run_server():
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-            uvicorn_logger.info("已清理CUDA缓存")
+            logger.info("已清理CUDA缓存")
     except Exception as e:
-        uvicorn_logger.error(f"环境测试失败: {str(e)}")
+        logger.error(f"环境测试失败: {str(e)}")
         import traceback
-        uvicorn_logger.error(f"错误详情: {traceback.format_exc()}")
+        logger.error(f"错误详情: {traceback.format_exc()}")
 
     # # 心跳包间隔（秒）- 已注释
     # HEARTBEAT_INTERVAL = 3600
@@ -223,5 +252,5 @@ def run_server():
             log_config=logging_config
         )
     except KeyboardInterrupt:
-        uvicorn_logger.info("Server shutting down...")
+        logger.info("Server shutting down...")
         sys.exit(0)

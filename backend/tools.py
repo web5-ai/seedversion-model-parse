@@ -14,47 +14,21 @@ from io import BytesIO
 from typing import Union,Literal
 from hashlib import sha256
 from uuid import uuid4
-import logging
 from PIL import Image
 import datetime
 import subprocess
+from utils.logging_config import get_logger
 
 # MODEL_OPTIONS = Literal['MPViT', 'ResNet', 'FasterNet', 'EfficientNet', 'Swin', 'VanillaNet']
 
-def setup_logger(name="Backend/Tools", level=SYSTEM_CONFIG["log_level"]):
-    """
-    设置日志记录器
-
-    Args:
-        name: 日志记录器名称
-        level: 日志级别，默认使用config.py中的配置
-
-    Returns:
-        配置好的日志记录器
-    """
-
-    level_map = {
-        "DEBUG": logging.DEBUG,
-        "INFO": logging.INFO,
-        "WARNING": logging.WARNING,
-        "ERROR": logging.ERROR,
-        "CRITICAL": logging.CRITICAL
-    }
-
-    logging.basicConfig(
-        level=level_map.get(level, logging.INFO),
-        format=SYSTEM_CONFIG["log_format"],
-        handlers=[logging.StreamHandler()]
-    )
-    return logging.getLogger(name)
-
-logger = setup_logger()
+# 获取日志记录器
+logger = get_logger("Backend/Tools")
 
 def get_img(img_url:str, ps=True):
     '''
     将原来的函数解耦一些
     '''
-    
+
     image = download_img(img_url) # 下载图像
     hash256 = img_hash(image) # 计算哈希值
 
@@ -111,7 +85,7 @@ def img_ps(image:Image.Image):
     except Exception as e:
         logger.error(f"PS处理失败: {str(e)}")
 
-    # 读取处理后的图片 
+    # 读取处理后的图片
     try:
         processed_image = Image.open(save_path_after)
         logger.info(f"图像已读取: {save_path_after}")

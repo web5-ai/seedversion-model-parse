@@ -12,41 +12,15 @@ sys.path.append(root_path)
 import torch
 import numpy as np
 from PIL import Image
-import logging
 import os
 from typing import Literal
 from utils.model_loader import ModelLoader
-from config import MODEL_CONFIG, IMAGE_CONFIG, OUTPUT_CONFIG, SYSTEM_CONFIG
+from config import MODEL_CONFIG, SYSTEM_CONFIG
 from utils.environment import check_dependencies, setup_environment
-import psutil
-def setup_logger(name="ModelAPI", level=SYSTEM_CONFIG["log_level"]):
-    """
-    设置日志记录器
+from utils.logging_config import get_logger
 
-    Args:
-        name: 日志记录器名称
-        level: 日志级别，默认使用config.py中的配置
-
-    Returns:
-        配置好的日志记录器
-    """
-
-    level_map = {
-        "DEBUG": logging.DEBUG,
-        "INFO": logging.INFO,
-        "WARNING": logging.WARNING,
-        "ERROR": logging.ERROR,
-        "CRITICAL": logging.CRITICAL
-    }
-
-    logging.basicConfig(
-        level=level_map.get(level, logging.INFO),
-        format=SYSTEM_CONFIG["log_format"],
-        handlers=[logging.StreamHandler()]
-    )
-    return logging.getLogger(name)
-
-logger = setup_logger()
+# 获取日志记录器
+logger = get_logger("ModelAPI")
 
 class ModelAPI:
     """
@@ -129,19 +103,31 @@ class ModelAPI:
         '''
         return self.loader.get_seed_info()
 
-    def run_env_test(self, model_name='FasterNet', test_image_path=r'E:\Proj\seedversion-model-parse\tests\test_images\image_custom.png', seed=123):
+    def run_env_test(self, model_name='FasterNet', test_image_path=None, seed=123):
         '''
         运行环境测试，测试当前环境下的各种变量情况
 
         Args:
-            model_name: 模型名称，默认为ResNet
+            model_name: 模型名称，默认为FasterNet
             test_image_path: 测试图像路径，默认使用config中的默认图像
             seed: 随机种子，默认使用config中的默认种子
 
         Returns:
             包含环境测试结果的字典
         '''
-        logger.info("开始运行环境测试...")
+        from config import IMAGE_CONFIG
+
+        # 如果未指定测试图像路径，使用配置中的默认路径
+        if test_image_path is None:
+            test_image_path = IMAGE_CONFIG["default_image_path"]
+
+        # 确保使用绝对路径
+        if not os.path.isabs(test_image_path):
+            # 获取项目根目录
+            root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            test_image_path = os.path.join(root_dir, test_image_path)
+
+        logger.info(f"开始运行环境测试... 模型: {model_name}, 图像: {test_image_path}")
         result = self.loader.env_test(model_name, test_image_path, seed)
         return result
     def eval_image(self, image, model_name:Literal['MPViT', 'ResNet', 'FasterNet', 'EfficientNet', 'Swin', 'VanillaNet'])->dict:

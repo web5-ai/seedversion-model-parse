@@ -8,6 +8,27 @@ current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if current_dir not in sys.path:
     sys.path.append(current_dir)
 
+# 首先设置正确的工作目录
+import os
+import sys
+
+# 获取项目根目录的绝对路径
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# 将项目根目录添加到Python路径
+sys.path.insert(0, ROOT_DIR)
+# 切换到项目根目录
+os.chdir(ROOT_DIR)
+
+# 导入集中的日志配置
+from utils.logging_config import get_logger
+
+# 获取日志记录器
+logger = get_logger("Backend")
+
+# 记录当前工作目录
+logger.info(f"当前工作目录: {os.getcwd()}")
+logger.info(f"Python路径: {sys.path}")
+
 # 导入强制环境设置模块
 from utils.force_env import force_environment
 # 使用固定种子强制设置环境
@@ -15,9 +36,7 @@ env_info = force_environment(seed=123)
 
 # 其他导入
 import asyncio
-import logging
 from fastapi import FastAPI
-from fastapi.responses import FileResponse
 from type_cls import TaskModel
 from tools import *
 from model_api import ModelAPI
@@ -25,13 +44,12 @@ import datetime
 from config import SYSTEM_CONFIG
 from run import run_server
 
-# 获取uvicorn的日志记录器
-logger = logging.getLogger("uvicorn")
-
 app = FastAPI()
 
 # 初始化模型API，加载默认模型
+logger.info("初始化ModelAPI...")
 model_api = ModelAPI('cuda')
+logger.info("ModelAPI初始化完成")
 
 @app.get("/")
 def root():
@@ -83,7 +101,8 @@ async def predict(task_info: TaskModel) -> dict:
         logger.info(f"开始使用{task_info.model_name}模型进行预测")
 
         s = datetime.datetime.now()
-        evals = await asyncio.to_thread(model_api.eval_image, img, task_info.model_name)  # 得到字典
+        evals = model_api.eval_image(img, task_info.model_name)  # 得到字典
+        # evals = await asyncio.to_thread(model_api.eval_image, img, task_info.model_name)  # 得到字典
         e = datetime.datetime.now()
         time_delta = (e - s).total_seconds()
         evals['time_delta'] = time_delta

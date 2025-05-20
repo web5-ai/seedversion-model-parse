@@ -3,7 +3,6 @@
 import os
 import sys
 import argparse
-import logging
 import torch
 import pandas as pd
 from PIL import Image
@@ -18,27 +17,10 @@ if current_dir not in sys.path:
 
 from utils.model_loader import ModelLoader
 from config import MODEL_CONFIG, IMAGE_CONFIG, SYSTEM_CONFIG
+from utils.logging_config import get_logger
 
-def setup_logger(name="ModelTest", level=None):
-    if level is None:
-        level = SYSTEM_CONFIG["log_level"]
-
-    level_map = {
-        "DEBUG": logging.DEBUG,
-        "INFO": logging.INFO,
-        "WARNING": logging.WARNING,
-        "ERROR": logging.ERROR,
-        "CRITICAL": logging.CRITICAL
-    }
-
-    logging.basicConfig(
-        level=level_map.get(level, logging.INFO),
-        format=SYSTEM_CONFIG["log_format"],
-        handlers=[logging.StreamHandler()]
-    )
-    return logging.getLogger(name)
-
-logger = setup_logger()
+# 获取日志记录器
+logger = get_logger("ModelTest")
 
 def get_available_models(models_dir="weights") -> List[Dict[str, str]]:
     if not os.path.exists(models_dir):
