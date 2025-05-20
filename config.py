@@ -5,6 +5,7 @@
 # 模型相关配置
 MODEL_CONFIG = {
     "model_path": "weights/",
+    "default_model": "FasterNet",
     "expected_components": 2,
     "component_names": ["蛋白质", "油脂"],
     "device": "cuda" # 在setup_environment函数中初始化设置
@@ -16,7 +17,8 @@ MODEL_CONFIG = {
 
 # 图像处理配置
 IMAGE_CONFIG = {
-    "default_image_path": "tests/test_images/image.png",
+    "default_image_path": "tests/test_images/image_custom.png",
+    "default_images_dir": "tests/images",
     "resize_dimensions": (224, 224),
     "normalize_mean": [0.485, 0.456, 0.406],
     "normalize_std": [0.229, 0.224, 0.225]
