@@ -6,6 +6,7 @@ from type_cls import TaskModel
 from tools import *
 from model_api import ModelAPI
 import datetime
+from config import SYSTEM_CONFIG
 from run import run_server
 
 # 获取uvicorn的日志记录器
@@ -47,19 +48,24 @@ async def predict(task_info: TaskModel) -> dict:
         }
     '''
     logger.info(f"收到预测请求: 模型={task_info.model_name}, 图像源={task_info.img_src}")
-    
+    # 记录系统环境中的随机因素，用来排查启动方式差异
+    model_api.set_seed(SYSTEM_CONFIG['default_seed'])
+    seed_info = model_api.get_seed_info()
+    # 用json格式标准输出
+    logger.info(f"系统环境中的随机因素: {seed_info}")
     # 读取上传的图像文件，使用asyncio.to_thread在单独线程中运行同步函数
     try:
         logger.info("开始下载/读取图像")
-        img, save_path = await asyncio.to_thread(get_img, task_info.img_src, False) # 路径先留着，不一定用得到
-        logger.info("图像获取成功")
+        img, save_path, hash256 = await asyncio.to_thread(get_img, task_info.img_src, False) # 路径先留着，不一定用得到
+        logger.info("图像获取成功，hash256: " + hash256)
     except Exception as e:
         logger.error(f"图像获取失败: {str(e)}")
         return {"模型预测失败_图片下载失败": str(e)}
-    
+
     # 模型预测，使用asyncio.to_thread在单独线程中运行同步函数
     try:
         logger.info(f"开始使用{task_info.model_name}模型进行预测")
+
         s = datetime.datetime.now()
         evals = await asyncio.to_thread(model_api.eval_image, img, task_info.model_name)  # 得到字典
         e = datetime.datetime.now()
@@ -72,9 +78,9 @@ async def predict(task_info: TaskModel) -> dict:
     except Exception as e:
         logger.error(f"模型预测失败: {str(e)}")
         return {"模型预测失败": str(e)}
-    
+
     # 保存任务到数据库的代码已被注释，如果需要可以取消注释并添加日志
-    
+
     return evals
 
 # @app.get("/history")

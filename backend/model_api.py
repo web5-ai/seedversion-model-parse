@@ -7,7 +7,7 @@ import os
 import sys
 
 root_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.append(root_path) 
+sys.path.append(root_path)
 
 import torch
 import numpy as np
@@ -21,15 +21,15 @@ import psutil
 def setup_logger(name="ModelAPI", level=SYSTEM_CONFIG["log_level"]):
     """
     设置日志记录器
-    
+
     Args:
         name: 日志记录器名称
         level: 日志级别，默认使用config.py中的配置
-    
+
     Returns:
         配置好的日志记录器
     """
-    
+
     level_map = {
         "DEBUG": logging.DEBUG,
         "INFO": logging.INFO,
@@ -37,7 +37,7 @@ def setup_logger(name="ModelAPI", level=SYSTEM_CONFIG["log_level"]):
         "ERROR": logging.ERROR,
         "CRITICAL": logging.CRITICAL
     }
-    
+
     logging.basicConfig(
         level=level_map.get(level, logging.INFO),
         format=SYSTEM_CONFIG["log_format"],
@@ -67,7 +67,7 @@ class ModelAPI:
         Args:
             model_path: 模型文件路径，默认用config的，但是因为可能要适配其他模型，所以保留接口
             model_name: 模型名称
-            device: 设备，默认为cuda，如果cuda不可用，则使用cpu 
+            device: 设备，默认为cuda，如果cuda不可用，则使用cpu
         """
         check_dependencies() # 检查依赖
         setup_environment() # 设置环境变量
@@ -87,13 +87,13 @@ class ModelAPI:
         """
         # 将输出转换为numpy数组
         output_np = output.cpu().numpy().flatten()
-        
+
         # 如果输出维度大于预期的成分数量，只取前几个值
         expected_components = MODEL_CONFIG["expected_components"]
         if len(output_np) > expected_components:
             logger.warning(f"模型输出维度({len(output_np)})大于预期成分数量({expected_components})，只取前{expected_components}个值")
             output_np = output_np[:expected_components]
-    
+
         oil = output_np[0] # 蛋白质含量
 
         protein = output_np[1] # 油含量
@@ -110,7 +110,35 @@ class ModelAPI:
             "protein": float(protein),
             "oil": float(oil),
         }
-    
+
+    def set_seed(self, seed:int = None):
+        '''
+        封装model_loader的set_seed方法
+        '''
+        return self.loader.set_seed(seed)
+
+    def get_seed_info(self):
+        '''
+        封装model_loader的get_seed_info方法
+        '''
+        return self.loader.get_seed_info()
+
+    def run_env_test(self, model_name='FasterNet', test_image_path=r'E:\Proj\seedversion-model-parse\tests\test_images\image_custom.png', seed=123):
+        '''
+        运行环境测试，测试当前环境下的各种变量情况
+
+        Args:
+            model_name: 模型名称，默认为ResNet
+            test_image_path: 测试图像路径，默认使用config中的默认图像
+            seed: 随机种子，默认使用config中的默认种子
+
+        Returns:
+            包含环境测试结果的字典
+        '''
+        logger.info("开始运行环境测试...")
+        result = self.loader.env_test(model_name, test_image_path, seed)
+        logger.info("环境测试完成")
+        return result
     def eval_image(self, image, model_name:Literal['MPViT', 'ResNet', 'FasterNet', 'EfficientNet', 'Swin', 'VanillaNet'])->dict:
         """
         对单张图像进行预测，返回预测结果的字典
@@ -138,13 +166,17 @@ class ModelAPI:
             preprocessed_image = self.loader.preprocess_image(image, size) # 预处理图像
             # 进行预测
             seed = self.loader.set_seed(SYSTEM_CONFIG['default_seed'])
+
+            # 获取随机种子信息
+            seed_info = self.loader.get_seed_info()
+
             output = self.loader.predict(preprocessed_image) # 进行预测
             self.loader.unload_model() # 卸载模型
             # 生成文本报告
             component_names = MODEL_CONFIG["component_names"]
             evals = self.generate_text_evals(output,component_names) # 生成文本报告
 
-            if torch.cuda.is_available():   
+            if torch.cuda.is_available():
                 # 获取最终显存使用情况
                 final_memory = torch.cuda.memory_allocated()
                 # 计算显存消耗
@@ -157,8 +189,9 @@ class ModelAPI:
 
             evals['memory_cost'] = memory_consumed
             evals['seed'] = seed
+            evals['seed_info'] = seed_info
         except Exception as e:
             logger.error(f"图像预测失败: {str(e)}")
             raise e
-        
+
         return evals

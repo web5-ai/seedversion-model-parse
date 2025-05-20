@@ -54,12 +54,15 @@ def get_img(img_url:str, ps=True):
     '''
     将原来的函数解耦一些
     '''
+    
     image = download_img(img_url) # 下载图像
+    hash256 = img_hash(image) # 计算哈希值
+
     save_path = None # 保存路径
     if ps: # 如果需要处理
         image, save_path = img_ps(image) # 处理图像
         logger.info(f"图像 {img_url} 处理成功，大小为 {image.size}")
-    return image, save_path
+    return image, save_path, hash256
 
 def download_img(img_url)->Union[Image.Image, None]:
     # 获取图片文件，返回Image对象

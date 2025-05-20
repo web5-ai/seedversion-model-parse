@@ -14,6 +14,7 @@ import threading
 import sys
 import time
 import json
+import torch
 from config import MODEL_CONFIG, IMAGE_CONFIG, OUTPUT_CONFIG, SYSTEM_CONFIG, BACKEND_CONFIG
 
 # 生成带时间戳的日志文件名
@@ -137,14 +138,12 @@ def run_server():
     # 127.0.0.1:8000打开网页
     # 访问127.0.0.1:8000/docs查看文档
 
-    # 打印配置信息
-    print("系统配置信息:")
-    print(f"MODEL_CONFIG: {json.dumps(MODEL_CONFIG, indent=2, ensure_ascii=False, default=str)}")
-    print(f"IMAGE_CONFIG: {json.dumps(IMAGE_CONFIG, indent=2, ensure_ascii=False, default=str)}")
-    print(f"OUTPUT_CONFIG: {json.dumps(OUTPUT_CONFIG, indent=2, ensure_ascii=False, default=str)}")
-    print(f"SYSTEM_CONFIG: {json.dumps(SYSTEM_CONFIG, indent=2, ensure_ascii=False)}")
-    print(f"BACKEND_CONFIG: {json.dumps(BACKEND_CONFIG, indent=2, ensure_ascii=False)}")
-
+    # 设置种子
+    os.environ["PYTHONHASHSEED"] = str(SYSTEM_CONFIG["default_seed"])
+    # 系统环境变量
+    print("系统环境变量:")
+    print(f"PYTHONHASHSEED: {os.environ.get('PYTHONHASHSEED')}")
+    print(f"CUDA_VISIBLE_DEVICES: {os.environ.get('CUDA_VISIBLE_DEVICES')}")
     # 使用自定义日志配置启动 uvicorn
     print("Starting uvicorn server...")
 
@@ -163,6 +162,52 @@ def run_server():
     uvicorn_logger.info(f"OUTPUT_CONFIG: {OUTPUT_CONFIG}")
     uvicorn_logger.info(f"SYSTEM_CONFIG: {SYSTEM_CONFIG}")
     uvicorn_logger.info(f"BACKEND_CONFIG: {BACKEND_CONFIG}")
+
+    # 运行环境测试
+    uvicorn_logger.info("开始运行环境测试...")
+    try:
+        # 导入ModelAPI，确保正确的导入路径
+        sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from backend.model_api import ModelAPI
+
+        # 初始化ModelAPI
+        model_api = ModelAPI()
+
+        # 运行环境测试，使用默认模型和种子
+        env_test_result = model_api.run_env_test()
+
+        # 将结果保存到日志目录
+        env_test_file = os.path.join(log_path, "env_test_result.json")
+        with open(env_test_file, 'w', encoding='utf-8') as f:
+            json.dump(env_test_result, f, ensure_ascii=False, indent=4)
+
+        # 记录关键信息到日志
+        uvicorn_logger.info(f"环境测试完成，结果已保存至: {env_test_file}")
+        uvicorn_logger.info(f"环境信息: Python {env_test_result['environment'].get('python_version', '未知').split()[0]}, PyTorch {env_test_result['environment'].get('torch_version', '未知')}")
+        uvicorn_logger.info(f"CUDA可用: {env_test_result['environment'].get('cuda_available', False)}")
+        if env_test_result['environment'].get('cuda_available'):
+            uvicorn_logger.info(f"GPU: {env_test_result['environment'].get('gpu_name', '未知')}")
+
+        uvicorn_logger.info(f"模型: {env_test_result['model'].get('name', '未知')}, 参数数量: {env_test_result['model'].get('total_params', '未知')}")
+
+        if 'protein' in env_test_result['prediction'] and 'oil' in env_test_result['prediction']:
+            uvicorn_logger.info(f"样本推理结果: 蛋白质={env_test_result['prediction']['protein']:.4f}, 油脂={env_test_result['prediction']['oil']:.4f}")
+
+        uvicorn_logger.info(f"预测结果哈希: {env_test_result['prediction'].get('hash', '未知')}")
+        uvicorn_logger.info(f"随机种子设置: {env_test_result['seed_info'].get('set_seed', '未知')}")
+        uvicorn_logger.info(f"PyTorch确定性: {env_test_result['seed_info'].get('torch_deterministic', '未知')}")
+
+        # 释放资源
+        del model_api
+        import gc
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            uvicorn_logger.info("已清理CUDA缓存")
+    except Exception as e:
+        uvicorn_logger.error(f"环境测试失败: {str(e)}")
+        import traceback
+        uvicorn_logger.error(f"错误详情: {traceback.format_exc()}")
 
     # # 心跳包间隔（秒）- 已注释
     # HEARTBEAT_INTERVAL = 3600

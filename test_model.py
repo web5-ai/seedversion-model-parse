@@ -17,6 +17,7 @@ import datetime
 from utils.model_loader import ModelLoader
 from config import MODEL_CONFIG, IMAGE_CONFIG, OUTPUT_CONFIG, SYSTEM_CONFIG
 from utils.environment import check_dependencies, setup_environment
+from concurrent.futures import ThreadPoolExecutor
 
 # 设置日志
 def setup_logger(name="ModelTest", level=None):
@@ -61,8 +62,8 @@ def set_seed(seed=None):
     if seed is None:
         seed = SYSTEM_CONFIG["default_seed"]
         
-    random.seed(seed)
-    np.random.seed(seed)
+    # random.seed(seed)
+    # np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True # 固定卷积算法以提高性能
@@ -247,6 +248,34 @@ def parse_arguments():
     parser.add_argument('--check-env', action='store_true', help='检查环境并安装依赖')
     return parser.parse_args()
 
+def batch_images_test(images_dir, model_name):
+    '''
+    使用批量图像测试模型能力
+    '''
+    # 检查图像目录是否存在
+    if not os.path.exists(images_dir):
+        logger.error(f"错误: 图像目录不存在: {images_dir}")
+        return
+    # 准备写入 Excel
+    import pandas as pd
+    if not os.path.exists('results/output.xlsx'):
+        df = pd.DataFrame(columns=['image', 'model', 'protein', 'oil'])  # 表头
+        df.to_excel('results/output.xlsx', index=False)  # 写入 Excel
+
+    model_path = os.path.join('weights', f'{model_name}.pt')  # 模型路径
+    image_paths = [os.path.join(images_dir, image_name) for image_name in os.listdir(images_dir)]
+
+    def process_image(image_path):
+        res = test_model(model_path, image_path)  # 调用 test_model 函数进行测试
+        if res:
+            df = pd.DataFrame(res, index=[0])  # 转换为 DataFrame
+            with pd.ExcelWriter('results/output.xlsx', mode='a', engine='openpyxl', if_sheet_exists='overlay') as writer:  # 写入 Excel
+                df.to_excel(writer, index=False, header=False, startrow=writer.sheets['Sheet1'].max_row)  # 写入 Excel
+
+    # 使用线程池进行多线程处理
+    with ThreadPoolExecutor() as executor:
+        executor.map(process_image, image_paths)
+
 def auto_model_test(except_models= [], test_image=None):
     '''
     从main()复制过来改了一下
@@ -371,16 +400,17 @@ def test_model(model_path = 'weights/ResNet18_best.pt', test_image = None):
     if model_loader.model.state_dict() is None:
         logger.error(f"模型加载失败: {model_path}")
         return
-    model_loader._analyze_model()
-    model_loader._analyze_state_dict()
+    # model_loader._analyze_model() 禁用分析，可以自行开启
+    # model_loader._analyze_state_dict()
     if test_image is None:
         logger.info(f"不进行预测测试")
     else:
         img = Image.open(test_image)
         img_tensor = model_loader.preprocess_image(img, 224) if model_loader.model_name != 'Swin' else model_loader.preprocess_image(img,256)
         output = model_loader.predict(img_tensor)
-        logger.info(f'模型{model_path} 预测结果: 蛋白质:{output[1]}, 油脂:{output[0]}')
+        logger.info(f'模型{model_path} 预测 {test_image}结果: 蛋白质:{output[1]}, 油脂:{output[0]}')
         return {
+            'image': test_image,
             'model': model_name,
            'oil': f'{output[0]:.4f}',
            'protein': f'{output[1]:.4f}',
@@ -389,7 +419,9 @@ def test_model(model_path = 'weights/ResNet18_best.pt', test_image = None):
 if __name__ == "__main__":
     exceptmodel = []
     img = r'tests\test_images\image_custom.png'
-    auto_model_test(except_models=exceptmodel, test_image= img)
+    img_dir = "E:\图片\Test0407"
+    batch_images_test(img_dir, 'FasterNet')
+    # auto_model_test(except_models=exceptmodel, test_image= img)
     # main()
     # url = 'http://47.100.53.207:8000/'
     # import requests
