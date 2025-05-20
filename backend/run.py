@@ -17,52 +17,53 @@ import json
 import torch
 from config import MODEL_CONFIG, IMAGE_CONFIG, OUTPUT_CONFIG, SYSTEM_CONFIG, BACKEND_CONFIG
 
-# 生成带时间戳的日志文件名
-timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-log_path = os.path.join(BACKEND_CONFIG['log_dir'], timestamp)
-BACKEND_CONFIG["images_dir"] = os.path.join(log_path, "images") # 每次启动时更新图像目录
-# 检查日志路径是否存在，如果不存在则创建
-if not os.path.exists(log_path):
-    os.makedirs(log_path)
-if not os.path.exists(BACKEND_CONFIG["images_dir"]): # 检查图像目录是否存在，如果不存在则创建
-    os.makedirs(BACKEND_CONFIG["images_dir"])
+def init_logging():
+        
+    # 生成带时间戳的日志文件名
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    log_path = os.path.join(BACKEND_CONFIG['log_dir'], timestamp)
+    # BACKEND_CONFIG["images_dir"] = os.path.join(log_path, "images") # 每次启动时更新图像目录
+    # 检查日志路径是否存在，如果不存在则创建
+    if not os.path.exists(log_path):
+        os.makedirs(log_path)
 
-# 只使用一个日志文件
-backend_log = os.path.join(log_path, "backend.log")
+    # 只使用一个日志文件
+    backend_log = os.path.join(log_path, "backend.log")
 
-# 配置uvicorn日志
-logging_config = {
-    "version": 1,
-    # 禁用已有的日志器，防止重复输出
-    "disable_existing_loggers": True,
-    "formatters": {
-        "default": {
-            "()": "uvicorn.logging.DefaultFormatter",
-            "fmt": BACKEND_CONFIG["log_format"],
-            "datefmt": BACKEND_CONFIG["log_date_format"],
+    # 配置uvicorn日志
+    logging_config = {
+        "version": 1,
+        # 禁用已有的日志器，防止重复输出
+        "disable_existing_loggers": True,
+        "formatters": {
+            "default": {
+                "()": "uvicorn.logging.DefaultFormatter",
+                "fmt": BACKEND_CONFIG["log_format"],
+                "datefmt": BACKEND_CONFIG["log_date_format"],
+            },
         },
-    },
-    "handlers": {
-        "file": {
-            "formatter": "default",
-            "class": "logging.FileHandler",
-            "filename": backend_log,
-            "encoding": BACKEND_CONFIG["log_encoding"],
+        "handlers": {
+            "file": {
+                "formatter": "default",
+                "class": "logging.FileHandler",
+                "filename": backend_log,
+                "encoding": BACKEND_CONFIG["log_encoding"],
+            },
+            "console": {
+                "formatter": "default",
+                "class": "logging.StreamHandler",
+            },
         },
-        "console": {
-            "formatter": "default",
-            "class": "logging.StreamHandler",
+        "loggers": {
+            "uvicorn": {
+                "handlers": ["file", "console"],
+                "level": "INFO",
+                # 防止日志向上传播到根日志器
+                "propagate": False,
+            },
         },
-    },
-    "loggers": {
-        "uvicorn": {
-            "handlers": ["file", "console"],
-            "level": "INFO",
-            # 防止日志向上传播到根日志器
-            "propagate": False,
-        },
-    },
-}
+    }
+    return logging_config, log_path
 
 # 从配置中获取内存监控和邮件配置
 MEMORY_LIMIT = BACKEND_CONFIG["memory_limit"]
@@ -135,6 +136,7 @@ def monitor_memory():
 #         time.sleep(interval)
 
 def run_server():
+    logging_config, log_path = init_logging()
     # 127.0.0.1:8000打开网页
     # 访问127.0.0.1:8000/docs查看文档
 
@@ -155,13 +157,8 @@ def run_server():
     # 获取uvicorn的日志记录器（提前配置）
     uvicorn_logger = logging.getLogger("uvicorn")
 
-    # 记录配置信息到日志
-    uvicorn_logger.info("系统配置信息:")
-    uvicorn_logger.info(f"MODEL_CONFIG: {MODEL_CONFIG}")
-    uvicorn_logger.info(f"IMAGE_CONFIG: {IMAGE_CONFIG}")
-    uvicorn_logger.info(f"OUTPUT_CONFIG: {OUTPUT_CONFIG}")
-    uvicorn_logger.info(f"SYSTEM_CONFIG: {SYSTEM_CONFIG}")
-    uvicorn_logger.info(f"BACKEND_CONFIG: {BACKEND_CONFIG}")
+    # 记录配置信息到日志（简化版本）
+    uvicorn_logger.info("系统已加载配置")
 
     # 运行环境测试
     uvicorn_logger.info("开始运行环境测试...")
@@ -182,20 +179,18 @@ def run_server():
             json.dump(env_test_result, f, ensure_ascii=False, indent=4)
 
         # 记录关键信息到日志
-        uvicorn_logger.info(f"环境测试完成，结果已保存至: {env_test_file}")
-        uvicorn_logger.info(f"环境信息: Python {env_test_result['environment'].get('python_version', '未知').split()[0]}, PyTorch {env_test_result['environment'].get('torch_version', '未知')}")
-        uvicorn_logger.info(f"CUDA可用: {env_test_result['environment'].get('cuda_available', False)}")
-        if env_test_result['environment'].get('cuda_available'):
-            uvicorn_logger.info(f"GPU: {env_test_result['environment'].get('gpu_name', '未知')}")
-
+        uvicorn_logger.info(f"环境测试结果已保存至: {env_test_file}")
         uvicorn_logger.info(f"模型: {env_test_result['model'].get('name', '未知')}, 参数数量: {env_test_result['model'].get('total_params', '未知')}")
+        if 'prediction' in env_test_result and 'protein' in env_test_result['prediction'] and 'oil' in env_test_result['prediction']:
+            prediction = env_test_result['prediction']
+            uvicorn_logger.info(f"环境测试完成: 蛋白质={prediction['protein']:.4f}, 油脂={prediction['oil']:.4f}, 哈希={prediction.get('hash', '未知')[:8]}...")
+        else:
+            uvicorn_logger.info("环境测试完成")
 
-        if 'protein' in env_test_result['prediction'] and 'oil' in env_test_result['prediction']:
-            uvicorn_logger.info(f"样本推理结果: 蛋白质={env_test_result['prediction']['protein']:.4f}, 油脂={env_test_result['prediction']['oil']:.4f}")
-
-        uvicorn_logger.info(f"预测结果哈希: {env_test_result['prediction'].get('hash', '未知')}")
-        uvicorn_logger.info(f"随机种子设置: {env_test_result['seed_info'].get('set_seed', '未知')}")
-        uvicorn_logger.info(f"PyTorch确定性: {env_test_result['seed_info'].get('torch_deterministic', '未知')}")
+        # 记录CUDA设备信息
+        if 'environment' in env_test_result and env_test_result['environment'].get('cuda_available', False):
+            env = env_test_result['environment']
+            uvicorn_logger.info(f"CUDA可用: {env.get('gpu_name', '未知')}")
 
         # 释放资源
         del model_api

@@ -13,6 +13,7 @@ import torch
 import numpy as np
 from PIL import Image
 import logging
+import os
 from typing import Literal
 from utils.model_loader import ModelLoader
 from config import MODEL_CONFIG, IMAGE_CONFIG, OUTPUT_CONFIG, SYSTEM_CONFIG
@@ -60,7 +61,7 @@ class ModelAPI:
         device: 设备，默认为cuda，如果cuda不可用，则使用cpu
         loader: 模型加载器，用于加载模型
     """
-    def __init__(self, device:Literal['cuda','cpu']='cuda'):
+    def __init__(self, device:Literal['cuda','cpu', None]=None):
         """
         初始化模型，提前加载状态字典，随时可以转化成模型
 
@@ -71,9 +72,10 @@ class ModelAPI:
         """
         check_dependencies() # 检查依赖
         setup_environment() # 设置环境变量
-
-        self.loader = ModelLoader(device=MODEL_CONFIG['device']) # 初始化加载器
-
+        if device is None: # 如果没有指定设备，则使用config中的默认设备
+            self.loader = ModelLoader(device=MODEL_CONFIG['device']) # 初始化加载器
+        else: # 如果指定了设备，则使用指定的设备
+            self.loader = ModelLoader(device=device) # 初始化加载器
     def generate_text_evals(self,output, components)->dict:
         """
         生成文本报告
@@ -88,6 +90,11 @@ class ModelAPI:
         # 将输出转换为numpy数组
         output_np = output.cpu().numpy().flatten()
 
+        # 标准化处理：控制精度以确保一致性
+        # 将数值四舍五入到固定小数位，以减少浮点误差的影响
+        decimal_places = 6  # 保留6位小数
+        output_np = np.round(output_np, decimal_places)
+
         # 如果输出维度大于预期的成分数量，只取前几个值
         expected_components = MODEL_CONFIG["expected_components"]
         if len(output_np) > expected_components:
@@ -95,7 +102,6 @@ class ModelAPI:
             output_np = output_np[:expected_components]
 
         oil = output_np[0] # 蛋白质含量
-
         protein = output_np[1] # 油含量
 
 
@@ -137,7 +143,6 @@ class ModelAPI:
         '''
         logger.info("开始运行环境测试...")
         result = self.loader.env_test(model_name, test_image_path, seed)
-        logger.info("环境测试完成")
         return result
     def eval_image(self, image, model_name:Literal['MPViT', 'ResNet', 'FasterNet', 'EfficientNet', 'Swin', 'VanillaNet'])->dict:
         """
@@ -160,15 +165,28 @@ class ModelAPI:
                 logger.warning("未使用CUDA，无法监控显存消耗。")
                 initial_memory = 0
 
-            self.loader.load_model(model_name) # 加载模型
-            self.model_name = model_name # 设置模型名称
-            size = 256 if model_name == 'Swin' else 224 # 设置图像大小，Swin需要256，其他模型需要224
-            preprocessed_image = self.loader.preprocess_image(image, size) # 预处理图像
-            # 进行预测
+            # 强制设置随机种子，确保结果可重复
             seed = self.loader.set_seed(SYSTEM_CONFIG['default_seed'])
 
             # 获取随机种子信息
             seed_info = self.loader.get_seed_info()
+
+            # 加载模型
+            self.loader.load_model(model_name) # 加载模型
+            self.model_name = model_name # 设置模型名称
+
+            # 预处理图像
+            size = 256 if model_name == 'Swin' else 224 # 设置图像大小，Swin需要256，其他模型需要224
+
+            # 确保在预处理前同步CUDA操作
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+
+            preprocessed_image = self.loader.preprocess_image(image, size) # 预处理图像
+
+            # 确保在预处理后同步CUDA操作
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
 
             output = self.loader.predict(preprocessed_image) # 进行预测
             self.loader.unload_model() # 卸载模型

@@ -1,3 +1,19 @@
+# 强制设置环境，确保在不同启动方式下获得一致的结果
+# 必须在所有其他导入之前执行
+import sys
+import os
+
+# 添加项目根目录到Python路径
+current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if current_dir not in sys.path:
+    sys.path.append(current_dir)
+
+# 导入强制环境设置模块
+from utils.force_env import force_environment
+# 使用固定种子强制设置环境
+env_info = force_environment(seed=123)
+
+# 其他导入
 import asyncio
 import logging
 from fastapi import FastAPI
@@ -15,7 +31,7 @@ logger = logging.getLogger("uvicorn")
 app = FastAPI()
 
 # 初始化模型API，加载默认模型
-model_api = ModelAPI()
+model_api = ModelAPI('cuda')
 
 @app.get("/")
 def root():

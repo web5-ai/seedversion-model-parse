@@ -56,8 +56,8 @@ def main():
     
     # 保存结果
     if args.output is None:
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        args.output = f"env_test_{timestamp}.json"
+        # timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        args.output = f"env_info.json"
     
     with open(args.output, 'w', encoding='utf-8') as f:
         json.dump(result, f, ensure_ascii=False, indent=4)

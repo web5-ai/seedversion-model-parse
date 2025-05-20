@@ -270,12 +270,13 @@ class ModelLoader:
         seed_info["torch_deterministic"] = torch.backends.cudnn.deterministic
         seed_info["torch_benchmark"] = torch.backends.cudnn.benchmark
 
-        logger.info(f"获取到随机种子信息: {seed_info}")
+        # 简化日志输出
+        logger.debug(f"获取到随机种子信息: {seed_info}")
         return seed_info
 
     def predict(self, image_tensor):
         """
-        使用模型进行预测
+        使用模型进行预测，确保结果的确定性
 
         Args:
             image_tensor: 预处理后的图像张量
@@ -283,8 +284,31 @@ class ModelLoader:
         Returns:
             预测结果
         """
+        # 确保在预测前同步CUDA操作
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+
+        # 使用确定性计算
         with torch.no_grad():
+            # 确保输入张量的数据类型一致
+            if image_tensor.dtype != torch.float32:
+                image_tensor = image_tensor.to(torch.float32)
+
+            # 进行预测
             output = self.model(image_tensor)
+
+            # 确保在预测后同步CUDA操作
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+
+            # 将输出转移到CPU并转换为float32类型
+            if output.is_cuda:
+                output = output.cpu()
+
+            # 确保输出类型一致
+            if output.dtype != torch.float32:
+                output = output.to(torch.float32)
+
             return output
 
     def env_test(self, model_name:MODEL_OPTIONS="ResNet", test_image_path=None, seed=None):
@@ -315,13 +339,39 @@ class ModelLoader:
             "seed_info": {}
         }
 
-        # 记录环境信息
+        # 记录详细环境信息
         result["environment"]["python_version"] = sys.version
+        result["environment"]["python_executable"] = sys.executable
+        result["environment"]["python_path"] = sys.path
+        result["environment"]["working_directory"] = os.getcwd()
         result["environment"]["torch_version"] = torch.__version__
+        result["environment"]["torch_threads"] = torch.get_num_threads()
         result["environment"]["cuda_available"] = torch.cuda.is_available()
+
+        # 记录环境变量
+        env_vars = {}
+        for key in ["PYTHONPATH", "PYTHONHASHSEED", "CUDA_VISIBLE_DEVICES", "PATH", "VIRTUAL_ENV"]:
+            env_vars[key] = os.environ.get(key, "Not set")
+        result["environment"]["env_vars"] = env_vars
+
+        # 记录进程信息
+        import psutil
+        process = psutil.Process()
+        result["environment"]["process_id"] = process.pid
+        result["environment"]["parent_process_id"] = process.ppid()
+        result["environment"]["process_name"] = process.name()
+        result["environment"]["process_cmdline"] = process.cmdline()
+
+        # 记录CUDA信息
         if torch.cuda.is_available():
             result["environment"]["cuda_version"] = torch.version.cuda
             result["environment"]["gpu_name"] = torch.cuda.get_device_name(0)
+            result["environment"]["cuda_device_count"] = torch.cuda.device_count()
+            result["environment"]["cuda_current_device"] = torch.cuda.current_device()
+            result["environment"]["cudnn_version"] = torch.backends.cudnn.version()
+            result["environment"]["cudnn_enabled"] = torch.backends.cudnn.enabled
+            result["environment"]["cudnn_deterministic"] = torch.backends.cudnn.deterministic
+            result["environment"]["cudnn_benchmark"] = torch.backends.cudnn.benchmark
 
         # 设置随机种子
         if seed is None:
@@ -401,16 +451,36 @@ class ModelLoader:
 
             # 记录预测结果
             output_np = output.cpu().numpy().flatten()
+
+            # 标准化处理：控制精度以确保一致性
+            # 将数值四舍五入到固定小数位，以减少浮点误差的影响
+            decimal_places = 6  # 保留6位小数
+            output_np_rounded = np.round(output_np, decimal_places)
+
+            # 保存原始和四舍五入后的结果
             result["prediction"]["raw_output"] = output_np.tolist()
+            result["prediction"]["rounded_output"] = output_np_rounded.tolist()
 
             # 如果是二维输出（蛋白质和油脂），则记录具体值
             if len(output_np) >= 2:
-                result["prediction"]["protein"] = float(output_np[0])
-                result["prediction"]["oil"] = float(output_np[1])
+                # 使用四舍五入后的值
+                result["prediction"]["protein"] = float(output_np_rounded[0])
+                result["prediction"]["oil"] = float(output_np_rounded[1])
 
-            # 计算预测结果的哈希值（用于验证结果的一致性）
-            prediction_hash = sha256(output_np.tobytes()).hexdigest()
-            result["prediction"]["hash"] = prediction_hash
+            # 计算多种哈希值，用于比较不同方法的稳定性
+
+            # 方法1：使用固定格式的字符串表示（最稳定的方法）
+            # 将每个值格式化为固定格式的字符串，确保表示一致
+            formatted_values = [f"{val:.{decimal_places}f}" for val in output_np]
+            formatted_str = ",".join(formatted_values)
+            formatted_hash = sha256(formatted_str.encode()).hexdigest()
+
+            # 方法2：使用原始二进制数据计算哈希（不稳定）
+            binary_hash = sha256(output_np.tobytes()).hexdigest()
+
+            # 保存哈希值
+            result["prediction"]["hash"] = formatted_hash  # 使用最稳定的方法作为主要哈希值
+            result["prediction"]["binary_hash"] = binary_hash  # 保存原始二进制哈希用于比较
         except Exception as e:
             logger.error(f"预测失败: {str(e)}")
             result["prediction"]["error"] = f"预测失败: {str(e)}"
@@ -418,5 +488,7 @@ class ModelLoader:
         # 卸载模型
         self.unload_model()
 
-        logger.info(f"环境测试完成，结果: {result}")
+        # 简化日志输出
+        if self.debug:
+            logger.info(f"环境测试完成")
         return result

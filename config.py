@@ -39,7 +39,7 @@ SYSTEM_CONFIG = {
 # 后台配置
 BACKEND_CONFIG = {
     # 日志配置
-    "log_dir": "./logs",  # 日志目录
+    "log_dir": r"E:\Proj\seedversion-model-parse\backend\logs",  # 日志目录
     "images_dir": "",  # 图像目录，每次会在runpy重新设置
     "log_format": "%(asctime)s - %(levelname)s - %(message)s",
     "log_date_format": "%Y-%m-%d %H:%M:%S",
