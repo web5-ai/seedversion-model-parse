@@ -224,7 +224,7 @@ class ModelLoader:
             self.model_name = None  # 将模型名称设置为None
             logger.info("模型已卸载")
 
-    def preprocess_image(self, image, size=224):
+    def preprocess_image(self, image:Image.Image, size=224):
         """
         预处理图像
 
