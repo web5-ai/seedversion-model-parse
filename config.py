@@ -49,7 +49,7 @@ BACKEND_CONFIG = {
 
     # 服务器配置
     "host": "0.0.0.0",
-    "port": 8000,
+    "port": 8123,
     "reload": True,
 
     # 内存监控配置

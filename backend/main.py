@@ -2,7 +2,7 @@
 # 必须在所有其他导入之前执行
 import sys
 import os
-
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'  # 添加这行解决OpenMP冲突
 # 添加项目根目录到Python路径
 current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if current_dir not in sys.path:

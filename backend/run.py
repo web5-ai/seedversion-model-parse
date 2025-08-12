@@ -15,7 +15,8 @@ import json
 import torch
 from config import SYSTEM_CONFIG, BACKEND_CONFIG
 from utils.logging_config import get_logger
-
+import os
+# os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'  # 添加这行解决OpenMP冲突
 def init_logging():
 
     # 生成带时间戳的日志文件名
