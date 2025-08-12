@@ -1,0 +1,30 @@
+[project]
+name = "seedversion-model-parse"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.116.1",
+    "pillow>=11.3.0",
+    "psutil>=7.0.0",
+    "pydantic>=2.11.7",
+    "requests>=2.32.4",
+    "torch",
+    "torchaudio==2.7",
+    "torchvision==0.22",
+]
+
+
+[tool.uv]
+# 指定 Python 解释器路径（使用 UV 正确的配置项名称）
+python-preference = "managed"
+
+index-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+cache-dir = ".uv_cache"
+
+#    "torch",
+#    "torchaudio==2.7",
+#    "torchvision==0.22",
+[tool.uv.sources]
+torch = { path = "../torch-2.7.0+cu128-cp310-cp310-win_amd64.whl" }
