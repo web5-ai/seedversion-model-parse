@@ -16,7 +16,8 @@ echo ================================================
 
 REM Activate conda environment
 echo Activating conda environment...
-call conda activate seed-parse
+echo Activating Venv...
+call .venv\Scripts\activate.bat
 if %ERRORLEVEL% NEQ 0 (
     echo Failed to activate conda environment.
     echo Please make sure conda is installed and the seed-parse environment exists.
