@@ -8,7 +8,12 @@ MODEL_CONFIG = {
     "default_model": "FasterNet",
     "expected_components": 2,
     "component_names": ["蛋白质", "油脂"],
-    "device": "cuda" # 在setup_environment函数中初始化设置
+    "device": "cuda", # 在setup_environment函数中初始化设置
+    # YOLO检测模型配置
+    "yolo_model_path": "weights/yolov8n.pt",
+    "default_detect_model": "YOLO",
+    "detect_conf_threshold": 0.25,
+    "detect_iou_threshold": 0.45
     # "quality_thresholds": {
     #     "油酸": 0.5,  # 油酸含量高于0.5为优质
     #     "亚油酸": 0.3  # 亚油酸含量高于0.3为营养价值高

@@ -13,7 +13,10 @@ from .VanillaNet import VanillaNet
 from .FasterNet import model as FasterNet # 导入FasterNet模型
 from .ResNet18 import ResNet18 as ResNet # 导入ResNet18模型
 from .EfficientNet import EfficientNet # 导入EfficientNet模型
-MODEL_OPTIONS = Literal['MPViT', 'ResNet', 'FasterNet', 'EfficientNet', 'Swin', 'VanillaNet'] # 模型选项
+from .yolo import yolo_model as YOLO # 导入YOLO模型
+
+REGRESS_MODEL_OPTIONS = Literal['MPViT', 'ResNet', 'FasterNet', 'EfficientNet', 'Swin', 'VanillaNet'] # 回归模型选项
+DETECT_MODEL_OPTIONS = Literal['YOLO'] # 检测模型选项
 
 # 原本是从客户给的文件里导入，但是每个文件的调用方法不同，就全部从新封装了统一的方法
 # from .build_mpvit import MPViT # 导入MPViT模型

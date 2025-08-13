@@ -5,14 +5,17 @@
 
 import torch
 from torch import nn
-from torchvision.models import resnet18
+from .torchvision_compat import resnet18_compat, suppress_torchvision_warnings
+
+# 抑制torchvision的弃用警告
+suppress_torchvision_warnings()
 
 class ResNet18(nn.Module):
     def __init__(self, num_classes = 2, device = 'cpu'):
         self.device = device
         super(ResNet18, self).__init__()
         # 加载预训练的ResNet18模型
-        self.ResNet = resnet18(pretrained=False)  # 这里设置为False，因为我们将加载本地的预训练模型
+        self.ResNet = resnet18_compat(use_pretrained=False)  # 使用兼容性函数创建模型
         # 增加一层全连接层，用于将ResNet18的输出转换为数量输出
         self.fc1 = nn.Linear(self.ResNet.fc.out_features, num_classes)  # 假设我们要预测的是数量，所以输出维度为2
 
@@ -37,7 +40,7 @@ if __name__ == '__main__':
 
     # model.load_state_dict(state_dict)  # 加载本地的预训练模型
     # # 加载本地的预训练模型
-    model = resnet18(pretrained=False)  # 加载本地的预训练模型
+    model = resnet18_compat(use_pretrained=False)  # 使用兼容性函数创建模型
     state_dict = torch.load('weights/ResNet18_best.pt', map_location='cpu')  # 加载本地的预训练模型
     std_dict = model.state_dict()  # 获取模型的状态字典
     model.load_state_dict(state_dict, strict=False)  # 加载状态字典

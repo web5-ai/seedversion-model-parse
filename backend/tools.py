@@ -50,6 +50,20 @@ def download_img(img_url)->Union[Image.Image, None]:
             logger.error(f"下载图像 {img_url} 失败: {str(e)}")
             raise e
         return image
+    else: # 如果是本地文件路径
+        try:
+            # 检查文件是否存在
+            if not os.path.exists(img_url):
+                logger.error(f"本地图像文件不存在: {img_url}")
+                return None
+
+            # 打开本地图像文件
+            image = Image.open(img_url).convert("RGB")
+            logger.info(f"本地图像 {img_url} 加载成功，大小为 {image.size}")
+            return image
+        except Exception as e:
+            logger.error(f"加载本地图像 {img_url} 失败: {str(e)}")
+            return None
 
 def img_ps(image:Image.Image):
     '''

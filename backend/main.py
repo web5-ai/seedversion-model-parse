@@ -25,14 +25,15 @@ from utils.logging_config import get_logger
 # 获取日志记录器
 logger = get_logger("Backend")
 
-# 记录当前工作目录
-logger.info(f"当前工作目录: {os.getcwd()}")
-logger.info(f"Python路径: {sys.path}")
+# 使用统一的环境管理
+from utils.environment import initialize_environment
 
-# 导入强制环境设置模块
-from utils.force_env import force_environment
-# 使用固定种子强制设置环境
-env_info = force_environment(seed=123)
+# 初始化环境（包含所有必要的检查和设置）
+env_result = initialize_environment(seed=123, verbose=False)
+
+if not env_result.get("success", False):
+    logger.error("环境初始化失败，服务无法启动")
+    sys.exit(1)
 
 # 其他导入
 import asyncio

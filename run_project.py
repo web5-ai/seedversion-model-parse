@@ -17,114 +17,71 @@ sys.path.insert(0, ROOT_DIR)
 os.environ["PYTHONPATH"] = ROOT_DIR
 os.environ["PYTHONHASHSEED"] = "123"
 
-def check_dependencies():
-    """Check if all required dependencies are installed"""
+def check_basic_dependencies():
+    """快速检查基本依赖是否可导入"""
+    critical_deps = ["torch", "fastapi", "uvicorn"]
     missing_deps = []
 
-    try:
-        import torch
-    except ImportError:
-        missing_deps.append("torch")
-
-    try:
-        import fastapi
-    except ImportError:
-        missing_deps.append("fastapi")
-
-    try:
-        import uvicorn
-    except ImportError:
-        missing_deps.append("uvicorn")
-
-    try:
-        import numpy
-    except ImportError:
-        missing_deps.append("numpy")
-
-    try:
-        import PIL
-    except ImportError:
-        missing_deps.append("pillow")
+    for dep in critical_deps:
+        try:
+            __import__(dep)
+        except ImportError:
+            missing_deps.append(dep)
 
     if missing_deps:
         print("=" * 50)
-        print("ERROR: Missing dependencies")
+        print("关键依赖缺失")
         print("=" * 50)
-        print("The following packages are required but not installed:")
+        print("以下关键包无法导入:")
         for dep in missing_deps:
             print(f"  - {dep}")
-        print("\nPlease install them using:")
-        print(f"pip install {' '.join(missing_deps)}")
-        print("or")
-        print("pip install -r requirements.txt")
+        print("\n请使用以下命令安装:")
+        print(f"uv add {' '.join(missing_deps)}")
         print("=" * 50)
         return False
 
     return True
 
-def setup_pytorch():
-    """Setup PyTorch environment"""
-    import torch
-
-    # Set random seed
-    torch.manual_seed(123)
-
-    # Configure CUDA if available
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(123)
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
-
-    # Set thread count
-    torch.set_num_threads(1)
-
-    return torch
-
 def main():
     """Main function to start the project"""
-    # Check dependencies
-    if not check_dependencies():
+    # 快速检查关键依赖
+    if not check_basic_dependencies():
         return 1
 
-    # Setup PyTorch
+    # 环境初始化将在backend/main.py中统一处理
+    # 这里只做基本的导入检查
     try:
-        torch = setup_pytorch()
+        import torch
+        print("PyTorch导入成功")
     except Exception as e:
-        print(f"Error setting up PyTorch: {str(e)}")
+        print(f"PyTorch导入失败: {str(e)}")
         return 1
 
-    # Set backend directory and main script path
+    # 设置后端目录和主脚本路径
     backend_dir = os.path.join(ROOT_DIR, "backend")
     main_script = os.path.join(backend_dir, "main.py")
 
-    # Change to backend directory
+    # 切换到后端目录
     os.chdir(backend_dir)
 
-    # Print environment information
+    # 简化的启动信息
     print("=" * 50)
-    print("Seed Analysis System Starting")
+    print("油菜籽成分分析系统")
     print("=" * 50)
-    print(f"Python interpreter: {sys.executable}")
-    print(f"Project root: {ROOT_DIR}")
-    print(f"Working directory: {os.getcwd()}")
-    print(f"PYTHONPATH: {os.environ.get('PYTHONPATH')}")
-    print(f"PYTHONHASHSEED: {os.environ.get('PYTHONHASHSEED')}")
-    print(f"PyTorch version: {torch.__version__}")
-    print(f"CUDA available: {torch.cuda.is_available()}")
-    if torch.cuda.is_available():
-        print(f"CUDA device: {torch.cuda.get_device_name(0)}")
+    print(f"项目根目录: {ROOT_DIR}")
+    print(f"Python: {sys.executable}")
+    print(f"启动后端服务...")
     print("=" * 50)
 
-    # Run backend
-    print(f"Starting backend service: {main_script}")
+    # 运行后端
     try:
         subprocess.run([sys.executable, main_script])
         return 0
     except KeyboardInterrupt:
-        print("\nService stopped")
+        print("\n服务已停止")
         return 0
     except Exception as e:
-        print(f"Error running backend: {str(e)}")
+        print(f"后端运行错误: {str(e)}")
         return 1
 
 if __name__ == "__main__":

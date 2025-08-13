@@ -8,7 +8,7 @@ import random
 import numpy as np
 from PIL import Image
 from typing import Literal
-from models import MPViT, ResNet, FasterNet, EfficientNet, Swin, VanillaNet, MODEL_OPTIONS
+from models import MPViT, ResNet, FasterNet, EfficientNet, Swin, VanillaNet, YOLO, REGRESS_MODEL_OPTIONS, DETECT_MODEL_OPTIONS
 from config import MODEL_CONFIG
 import traceback
 
@@ -139,7 +139,7 @@ class ModelLoader:
         logger.info(f"已设置随机种子: {seed}")
         return seed
 
-    def load_model(self, model_name:MODEL_OPTIONS):
+    def load_model(self, model_name:REGRESS_MODEL_OPTIONS):
         """
         加载预训练模型
 
@@ -204,15 +204,17 @@ class ModelLoader:
             # self.model.load_state_dict(self.state_dict, strict=True)  # 加载状态字典，允许部分参数不匹配
 
             logger.info(f"成功加载{model_name}模型")
+
+            # 设置为评估模式
+            self.model.eval()
+            logger.info("模型加载完成，已设置为评估模式")
+            return True
+
         except Exception as e:
             logger.warning(f"加载{model_name}模型失败: {str(e)}")
             tb = traceback.format_exc()  # 获取完整的异常信息
             logger.warning(f"加载模型错误信息: {tb}")
-            # raise ValueError("无法加载模型，请检查模型文件格式或提供模型架构信息")
-
-        # 设置为评估模式
-        self.model.eval()
-        logger.info("模型加载完成，已设置为评估模式")
+            return False
 
     def unload_model(self):
         """
@@ -223,7 +225,49 @@ class ModelLoader:
             self.model = None  # 将模型设置为None
             self.model_name = None  # 将模型名称设置为None
             logger.info("模型已卸载")
+    def load_detect_model(self, model_name: DETECT_MODEL_OPTIONS, model_path: str = None):
+        """
+        加载目标检测模型
 
+        Args:
+            model_name: 检测模型名称
+            model_path: 模型权重文件路径
+
+        Returns:
+            bool: 加载是否成功
+        """
+        try:
+            self.model_name = model_name
+
+            # 根据模型名称选择对应的模型类
+            if model_name == "YOLO":
+                # 如果没有指定模型路径，使用默认路径
+                if model_path is None:
+                    model_path = MODEL_CONFIG.get("yolo_model_path", "yolov8n.pt")
+
+                # 检查模型文件是否存在
+                if not os.path.exists(model_path):
+                    logger.warning(f"YOLO模型文件不存在: {model_path}，将使用默认预训练模型")
+                    model_path = "yolov8n.pt"  # 使用ultralytics的默认模型
+
+                # 创建YOLO模型实例
+                self.model = YOLO(model_path)
+                logger.info(f"成功加载YOLO模型: {model_path}")
+
+            else:
+                raise ValueError(f"不支持的检测模型: {model_name}")
+
+            # 设置模型为评估模式
+            if hasattr(self.model, 'eval'):
+                self.model.eval()
+
+            logger.info(f"检测模型 {model_name} 加载完成")
+            return True
+
+        except Exception as e:
+            logger.error(f"加载检测模型失败: {str(e)}")
+            logger.error(traceback.format_exc())
+            return False
     def preprocess_image(self, image:Image.Image, size=224):
         """
         预处理图像
@@ -329,7 +373,45 @@ class ModelLoader:
 
             return output
 
-    def env_test(self, model_name:MODEL_OPTIONS="ResNet", test_image_path=None, seed=None):
+    def detect(self, image, conf_threshold: float = 0.25, iou_threshold: float = 0.45):
+        """
+        使用检测模型进行目标检测
+
+        Args:
+            image: 输入图像 (PIL Image 或 numpy array 或 tensor)
+            conf_threshold: 置信度阈值
+            iou_threshold: IoU阈值
+
+        Returns:
+            检测结果
+        """
+        if self.model is None:
+            raise ValueError("模型未加载，请先调用load_detect_model方法")
+
+        try:
+            # 确保在检测前同步CUDA操作
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+
+            # 使用YOLO模型进行检测
+            if self.model_name == "YOLO":
+                # YOLO模型的detect方法
+                results = self.model.detect(image)
+
+                # 确保在检测后同步CUDA操作
+                if torch.cuda.is_available():
+                    torch.cuda.synchronize()
+
+                return results
+            else:
+                raise ValueError(f"不支持的检测模型: {self.model_name}")
+
+        except Exception as e:
+            logger.error(f"目标检测失败: {str(e)}")
+            logger.error(traceback.format_exc())
+            raise e
+
+    def env_test(self, model_name:REGRESS_MODEL_OPTIONS="ResNet", test_image_path=None, seed=None):
         """
         环境测试函数，用于测试当前环境下的各种变量情况
 

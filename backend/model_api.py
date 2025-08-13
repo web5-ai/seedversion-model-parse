@@ -142,7 +142,12 @@ class ModelAPI:
         Returns:
             预测结果的字典
         """
+        import datetime
+
         try:
+            # 记录开始时间
+            start_time = datetime.datetime.now()
+
             # 检查是否有可用的CUDA设备
             if MODEL_CONFIG['device'] == 'cuda':
                 # 获取初始显存使用情况
@@ -191,7 +196,12 @@ class ModelAPI:
             else:
                 memory_consumed = 0
 
+            # 记录结束时间并计算耗时
+            end_time = datetime.datetime.now()
+            time_delta = (end_time - start_time).total_seconds()
+
             evals['memory_cost'] = memory_consumed
+            evals['time_delta'] = time_delta
             evals['seed'] = seed
             evals['seed_info'] = seed_info
         except Exception as e:

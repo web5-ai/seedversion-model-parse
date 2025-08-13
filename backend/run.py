@@ -18,11 +18,11 @@ from utils.logging_config import get_logger
 import os
 # os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'  # 添加这行解决OpenMP冲突
 def init_logging():
-
+    """初始化后端日志配置（文件日志）"""
     # 生成带时间戳的日志文件名
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
     log_path = os.path.join(BACKEND_CONFIG['log_dir'], timestamp)
-    # BACKEND_CONFIG["images_dir"] = os.path.join(log_path, "images") # 每次启动时更新图像目录
+
     # 检查日志路径是否存在，如果不存在则创建
     if not os.path.exists(log_path):
         os.makedirs(log_path)
@@ -30,55 +30,34 @@ def init_logging():
     # 只使用一个日志文件
     backend_log = os.path.join(log_path, "backend.log")
 
-    # 配置uvicorn日志
+    # 简化的uvicorn日志配置（只配置文件输出，控制台输出由统一日志管理）
     logging_config = {
         "version": 1,
-        # 禁用已有的日志器，防止重复输出
         "disable_existing_loggers": False,
         "formatters": {
-            "default": {
-                "()": "uvicorn.logging.DefaultFormatter",
-                "fmt": BACKEND_CONFIG["log_format"],
+            "file": {
+                "format": BACKEND_CONFIG["log_format"],
                 "datefmt": BACKEND_CONFIG["log_date_format"],
             },
         },
         "handlers": {
             "file": {
-                "formatter": "default",
+                "formatter": "file",
                 "class": "logging.FileHandler",
                 "filename": backend_log,
                 "encoding": BACKEND_CONFIG["log_encoding"],
             },
-            "console": {
-                "formatter": "default",
-                "class": "logging.StreamHandler",
-            },
         },
         "loggers": {
             "uvicorn": {
-                "handlers": ["file", "console"],
+                "handlers": ["file"],
                 "level": "INFO",
-                "propagate": False,
+                "propagate": True,  # 允许传播到根日志器（控制台输出）
             },
-            "Backend": {
-                "handlers": ["file", "console"],
+            "uvicorn.access": {
+                "handlers": ["file"],
                 "level": "INFO",
-                "propagate": False,
-            },
-            "ForceEnv": {
-                "handlers": ["file", "console"],
-                "level": "INFO",
-                "propagate": False,
-            },
-            "ModelAPI": {
-                "handlers": ["file", "console"],
-                "level": "INFO",
-                "propagate": False,
-            },
-            "Backend/Tools": {
-                "handlers": ["file", "console"],
-                "level": "INFO",
-                "propagate": False,
+                "propagate": False,  # 访问日志不传播，避免重复
             },
         },
     }
