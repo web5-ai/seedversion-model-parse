@@ -209,3 +209,171 @@ class ModelAPI:
             raise e
 
         return evals
+
+    def detect_objects(self, image, conf_threshold: float = None, iou_threshold: float = None) -> dict:
+        """
+        对图像进行目标检测
+
+        Args:
+            image: 输入图像
+            conf_threshold: 置信度阈值，默认使用配置中的值
+            iou_threshold: IoU阈值，默认使用配置中的值
+
+        Returns:
+            检测结果字典，包含是否检测到对象和检测详情
+        """
+        import datetime
+
+        try:
+            # 记录开始时间
+            start_time = datetime.datetime.now()
+
+            # 使用配置中的默认阈值
+            if conf_threshold is None:
+                conf_threshold = MODEL_CONFIG.get("detect_conf_threshold", 0.25)
+            if iou_threshold is None:
+                iou_threshold = MODEL_CONFIG.get("detect_iou_threshold", 0.45)
+
+            # 加载检测模型
+            detect_model = MODEL_CONFIG.get("detect_model", "YOLO")
+            success = self.loader.load_detect_model(detect_model)
+
+            if not success:
+                return {
+                    "success": False,
+                    "error": "检测模型加载失败",
+                    "detected": False,
+                    "objects": []
+                }
+
+            # 进行目标检测
+            results = self.loader.detect(image, conf_threshold, iou_threshold)
+
+            # 卸载检测模型
+            self.loader.unload_model()
+
+            # 分析检测结果
+            detected_objects = []
+            has_detection = False
+
+            if results:
+                for result in results:
+                    if hasattr(result, 'boxes') and result.boxes is not None and len(result.boxes) > 0:
+                        has_detection = True
+                        # 提取检测框信息
+                        boxes = result.boxes
+                        for i in range(len(boxes)):
+                            box_info = {
+                                "confidence": float(boxes.conf[i]) if hasattr(boxes, 'conf') else 0.0,
+                                "class_id": int(boxes.cls[i]) if hasattr(boxes, 'cls') else -1,
+                                "bbox": boxes.xyxy[i].tolist() if hasattr(boxes, 'xyxy') else []
+                            }
+                            # 添加类别名称
+                            if hasattr(result, 'names') and box_info["class_id"] in result.names:
+                                box_info["class_name"] = result.names[box_info["class_id"]]
+                            detected_objects.append(box_info)
+
+            # 记录结束时间
+            end_time = datetime.datetime.now()
+            time_delta = (end_time - start_time).total_seconds()
+
+            return {
+                "success": True,
+                "detected": has_detection,
+                "objects": detected_objects,
+                "detection_count": len(detected_objects),
+                "time_delta": time_delta,
+                "conf_threshold": conf_threshold,
+                "iou_threshold": iou_threshold
+            }
+
+        except Exception as e:
+            logger.error(f"目标检测失败: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "detected": False,
+                "objects": []
+            }
+
+    def detect_and_eval(self, image, model_name: Literal['MPViT', 'ResNet', 'FasterNet', 'EfficientNet', 'Swin', 'VanillaNet'] = 'FasterNet',
+                       conf_threshold: float = None, iou_threshold: float = None) -> dict:
+        """
+        先进行目标检测，如果检测到对象则进行成分分析，否则返回未检测到种子对象
+
+        Args:
+            image: 输入图像
+            model_name: 用于成分分析的模型名称
+            conf_threshold: 检测置信度阈值
+            iou_threshold: 检测IoU阈值
+
+        Returns:
+            包含检测和分析结果的字典
+        """
+        import datetime
+
+        # 记录总开始时间
+        total_start_time = datetime.datetime.now()
+
+        # 第一步：目标检测
+        logger.info("开始目标检测...")
+        detection_result = self.detect_objects(image, conf_threshold, iou_threshold)
+
+        # 检查检测是否成功
+        if not detection_result["success"]:
+            return {
+                "success": False,
+                "stage": "detection",
+                "error": detection_result.get("error", "检测失败"),
+                "detection_result": detection_result
+            }
+
+        # 检查是否检测到对象
+        if not detection_result["detected"]:
+            logger.info("未检测到种子对象，跳过成分分析")
+            total_end_time = datetime.datetime.now()
+            total_time_delta = (total_end_time - total_start_time).total_seconds()
+
+            return {
+                "success": True,
+                "stage": "detection_only",
+                "message": "未检测到种子对象",
+                "detected": False,
+                "detection_result": detection_result,
+                "evaluation_result": None,
+                "total_time_delta": total_time_delta
+            }
+
+        # 第二步：成分分析
+        logger.info(f"检测到 {detection_result['detection_count']} 个对象，开始成分分析...")
+        try:
+            evaluation_result = self.eval_image(image, model_name)
+
+            # 计算总耗时
+            total_end_time = datetime.datetime.now()
+            total_time_delta = (total_end_time - total_start_time).total_seconds()
+
+            return {
+                "success": True,
+                "stage": "complete",
+                "message": "检测和分析完成",
+                "detected": True,
+                "detection_result": detection_result,
+                "evaluation_result": evaluation_result,
+                "total_time_delta": total_time_delta
+            }
+
+        except Exception as e:
+            logger.error(f"成分分析失败: {str(e)}")
+            total_end_time = datetime.datetime.now()
+            total_time_delta = (total_end_time - total_start_time).total_seconds()
+
+            return {
+                "success": False,
+                "stage": "evaluation",
+                "error": str(e),
+                "detected": True,
+                "detection_result": detection_result,
+                "evaluation_result": None,
+                "total_time_delta": total_time_delta
+            }

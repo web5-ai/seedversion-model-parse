@@ -12,3 +12,12 @@ class TaskModel(BaseModel):
     '''
     img_src:str
     model_name:Literal['MPViT', 'ResNet', 'FasterNet', 'EfficientNet', 'Swin', 'VanillaNet']
+
+class DetectAndEvalModel(BaseModel):
+    '''
+    用于接收检测和评估任务的数据类
+    '''
+    img_src: str
+    model_name: Literal['MPViT', 'ResNet', 'FasterNet', 'EfficientNet', 'Swin', 'VanillaNet'] = 'FasterNet'
+    conf_threshold: Union[float, None] = None  # 检测置信度阈值，None表示使用默认值
+    iou_threshold: Union[float, None] = None   # IoU阈值，None表示使用默认值
