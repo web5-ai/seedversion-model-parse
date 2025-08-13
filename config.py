@@ -9,9 +9,9 @@ MODEL_CONFIG = {
     "expected_components": 2,
     "component_names": ["蛋白质", "油脂"],
     "device": "cuda", # 在setup_environment函数中初始化设置
-    # YOLO检测模型配置
-    "yolo_model_path": "weights/yolov8n.pt",
-    "default_detect_model": "YOLO",
+    # 检测模型配置
+    "detect_model": "YOLO",
+    "detect_model_path": "weights/yolov8n.pt",
     "detect_conf_threshold": 0.25,
     "detect_iou_threshold": 0.45
     # "quality_thresholds": {

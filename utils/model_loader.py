@@ -243,7 +243,7 @@ class ModelLoader:
             if model_name == "YOLO":
                 # 如果没有指定模型路径，使用默认路径
                 if model_path is None:
-                    model_path = MODEL_CONFIG.get("yolo_model_path", "yolov8n.pt")
+                    model_path = MODEL_CONFIG.get("detect_model_path", "yolov8n.pt")
 
                 # 检查模型文件是否存在
                 if not os.path.exists(model_path):
