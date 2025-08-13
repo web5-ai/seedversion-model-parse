@@ -119,10 +119,99 @@ async def predict(task_info: TaskModel) -> dict:
 
     return evals
 
-@app.post("/v1/detect-and-eval")
-async def detect_and_eval(task_info: DetectAndEvalModel) -> dict:
+@app.post("/v1/predict")
+async def predict_v1(task_info: DetectAndEvalModel) -> dict:
     '''
-    检测和评估接口，先进行目标检测，如果检测到种子对象则进行成分分析
+    V1预测接口：智能检测和分析，返回简化结果
+
+    Args:
+        img_src: 图像文件的URL或路径
+        model_name: 用于成分分析的模型名称，默认为'FasterNet'
+        conf_threshold: 检测置信度阈值，None表示使用配置默认值
+        iou_threshold: IoU阈值，None表示使用配置默认值
+
+    Returns:
+        {
+            "detected": bool,          # 是否检测到种子对象
+            "protein": float,          # 蛋白质含量（如果检测到）
+            "oil": float,              # 油脂含量（如果检测到）
+            "message": str,            # 状态消息
+            "time_delta": float        # 总耗时（秒）
+        }
+    '''
+    logger.info(f"收到检测和评估请求: 模型={task_info.model_name}, 图像源={task_info.img_src}")
+    logger.info(f"检测参数: conf_threshold={task_info.conf_threshold}, iou_threshold={task_info.iou_threshold}")
+
+    # 设置随机种子
+    model_api.set_seed(SYSTEM_CONFIG['default_seed'])
+    seed_info = model_api.get_seed_info()
+    logger.info(f"系统环境中的随机因素: {seed_info}")
+
+    # 读取图像文件
+    try:
+        logger.info("开始下载/读取图像")
+        img, save_path, hash256 = await asyncio.to_thread(get_img, task_info.img_src, False)
+        logger.info("图像获取成功，hash256: " + hash256)
+    except Exception as e:
+        logger.error(f"图像获取失败: {str(e)}")
+        return {
+            "detected": False,
+            "protein": 0.0,
+            "oil": 0.0,
+            "message": f"图像获取失败: {str(e)}",
+            "time_delta": 0.0
+        }
+
+    # 执行检测和评估
+    try:
+        logger.info("开始执行检测和评估流程")
+        result = model_api.detect_and_eval(
+            img,
+            task_info.model_name,
+            task_info.conf_threshold,
+            task_info.iou_threshold
+        )
+
+        # 转换为v1格式的简化结果
+        v1_result = {
+            "detected": result.get("detected", False),
+            "protein": 0.0,
+            "oil": 0.0,
+            "message": result.get("message", ""),
+            "time_delta": result.get("total_time_delta", 0.0)
+        }
+
+        # 如果检测到对象且有评估结果，提取数值
+        if result.get("detected") and result.get("evaluation_result"):
+            eval_result = result["evaluation_result"]
+            v1_result["protein"] = eval_result.get("protein", 0.0)
+            v1_result["oil"] = eval_result.get("oil", 0.0)
+
+        # 记录结果
+        if result.get("success"):
+            if result.get("detected"):
+                logger.info(f"检测和评估完成: 检测到对象，蛋白质: {v1_result['protein']:.2f}%, 油脂: {v1_result['oil']:.2f}%, 耗时: {v1_result['time_delta']:.3f}秒")
+            else:
+                logger.info(f"检测完成但未发现种子对象，耗时: {v1_result['time_delta']:.3f}秒")
+        else:
+            logger.error(f"检测和评估失败: {result.get('error', '未知错误')}")
+
+        return v1_result
+
+    except Exception as e:
+        logger.error(f"检测和评估过程失败: {str(e)}")
+        return {
+            "detected": False,
+            "protein": 0.0,
+            "oil": 0.0,
+            "message": f"处理失败: {str(e)}",
+            "time_delta": 0.0
+        }
+
+@app.post("/v2/predict")
+async def predict_v2(task_info: DetectAndEvalModel) -> dict:
+    '''
+    V2预测接口：智能检测和分析，返回完整结果详情
 
     Args:
         img_src: 图像文件的URL或路径
@@ -133,15 +222,17 @@ async def detect_and_eval(task_info: DetectAndEvalModel) -> dict:
     Returns:
         {
             "success": bool,           # 整体操作是否成功
-            "stage": str,              # 执行阶段: "detection", "detection_only", "complete", "evaluation"
+            "stage": str,              # 执行阶段
             "message": str,            # 状态消息
             "detected": bool,          # 是否检测到对象
             "detection_result": dict,  # 检测结果详情
             "evaluation_result": dict, # 成分分析结果（如果有）
-            "total_time_delta": float  # 总耗时（秒）
+            "total_time_delta": float, # 总耗时（秒）
+            "image_hash": str,         # 图像哈希值
+            "model_name": str          # 使用的模型名称
         }
     '''
-    logger.info(f"收到检测和评估请求: 模型={task_info.model_name}, 图像源={task_info.img_src}")
+    logger.info(f"收到V2预测请求: 模型={task_info.model_name}, 图像源={task_info.img_src}")
     logger.info(f"检测参数: conf_threshold={task_info.conf_threshold}, iou_threshold={task_info.iou_threshold}")
 
     # 设置随机种子
@@ -163,7 +254,9 @@ async def detect_and_eval(task_info: DetectAndEvalModel) -> dict:
             "detected": False,
             "detection_result": None,
             "evaluation_result": None,
-            "total_time_delta": 0
+            "total_time_delta": 0.0,
+            "image_hash": "",
+            "model_name": task_info.model_name
         }
 
     # 执行检测和评估
@@ -181,18 +274,18 @@ async def detect_and_eval(task_info: DetectAndEvalModel) -> dict:
         result['model_name'] = task_info.model_name
 
         # 记录结果
-        if result["success"]:
-            if result["detected"]:
-                logger.info(f"检测和评估完成: 检测到 {result['detection_result']['detection_count']} 个对象，总耗时: {result['total_time_delta']:.3f}秒")
+        if result.get("success"):
+            if result.get("detected"):
+                logger.info(f"V2检测和评估完成: 检测到 {result['detection_result']['detection_count']} 个对象，总耗时: {result['total_time_delta']:.3f}秒")
             else:
-                logger.info(f"检测完成但未发现种子对象，耗时: {result['total_time_delta']:.3f}秒")
+                logger.info(f"V2检测完成但未发现种子对象，耗时: {result['total_time_delta']:.3f}秒")
         else:
-            logger.error(f"检测和评估失败: {result.get('error', '未知错误')}")
+            logger.error(f"V2检测和评估失败: {result.get('error', '未知错误')}")
 
         return result
 
     except Exception as e:
-        logger.error(f"检测和评估过程失败: {str(e)}")
+        logger.error(f"V2检测和评估过程失败: {str(e)}")
         return {
             "success": False,
             "stage": "processing",
@@ -200,7 +293,9 @@ async def detect_and_eval(task_info: DetectAndEvalModel) -> dict:
             "detected": False,
             "detection_result": None,
             "evaluation_result": None,
-            "total_time_delta": 0
+            "total_time_delta": 0.0,
+            "image_hash": hash256,
+            "model_name": task_info.model_name
         }
 
 # @app.get("/history")
