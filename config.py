@@ -11,7 +11,7 @@ MODEL_CONFIG = {
     "device": "cuda", # 在setup_environment函数中初始化设置
     # 检测模型配置
     "detect_model": "YOLO",
-    "detect_model_path": "weights/yolov8n.pt",
+    "detect_model_path": "weights/yolov11.onnx",
     "detect_conf_threshold": 0.25,
     "detect_iou_threshold": 0.45
     # "quality_thresholds": {
@@ -22,7 +22,7 @@ MODEL_CONFIG = {
 
 # 图像处理配置
 IMAGE_CONFIG = {
-    "default_image_path": "tests/test_images/image_custom.png",
+    "default_image_path": "tests/test_images/image_custom.jpg",
     "default_images_dir": "tests/images",
     "resize_dimensions": (224, 224),
     "normalize_mean": [0.485, 0.456, 0.406],
@@ -55,7 +55,7 @@ BACKEND_CONFIG = {
     # 服务器配置
     "host": "0.0.0.0",
     "port": 8123,
-    "reload": True,
+    "reload": True,  # 禁用自动重载，避免重复初始化
 
     # 内存监控配置
     "memory_limit": 1024 * 1024 * 10000,  # 10000MB
