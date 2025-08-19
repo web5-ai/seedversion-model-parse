@@ -10,14 +10,14 @@ class TaskModel(BaseModel):
     '''
     用于接收任务json的数据类
     '''
-    img_src:str
-    model_name:Literal['MPViT', 'ResNet', 'FasterNet', 'EfficientNet', 'Swin', 'VanillaNet']
+    image_url: str  # 统一使用image_url字段名
+    model: Literal['MPViT', 'ResNet', 'FasterNet', 'EfficientNet', 'Swin', 'VanillaNet']  # 统一使用model字段名
 
 class DetectAndEvalModel(BaseModel):
     '''
     用于接收检测和评估任务的数据类
     '''
-    img_src: str
-    model_name: Literal['MPViT', 'ResNet', 'FasterNet', 'EfficientNet', 'Swin', 'VanillaNet'] = 'FasterNet'
+    image_url: str  # 统一使用image_url字段名
+    model: Literal['MPViT', 'ResNet', 'FasterNet', 'EfficientNet', 'Swin', 'VanillaNet'] = 'FasterNet'  # 统一使用model字段名
     conf_threshold: Union[float, None] = None  # 检测置信度阈值，None表示使用默认值
     iou_threshold: Union[float, None] = None   # IoU阈值，None表示使用默认值

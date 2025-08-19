@@ -80,7 +80,7 @@ async def predict(task_info: TaskModel) -> dict:
             'memory_cost': float, # 模型预测内存消耗，单位为MB
         }
     '''
-    logger.info(f"收到预测请求: 模型={task_info.model_name}, 图像源={task_info.img_src}")
+    logger.info(f"收到预测请求: 模型={task_info.model}, 图像源={task_info.image_url}")
     # 记录系统环境中的随机因素，用来排查启动方式差异
     model_api.set_seed(SYSTEM_CONFIG['default_seed'])
     seed_info = model_api.get_seed_info()
@@ -89,7 +89,7 @@ async def predict(task_info: TaskModel) -> dict:
     # 读取上传的图像文件，使用asyncio.to_thread在单独线程中运行同步函数
     try:
         logger.info("开始下载/读取图像")
-        img, save_path, hash256 = await asyncio.to_thread(get_img, task_info.img_src, False) # 路径先留着，不一定用得到
+        img, save_path, hash256 = await asyncio.to_thread(get_img, task_info.image_url, False) # 路径先留着，不一定用得到
         logger.info("图像获取成功，hash256: " + hash256)
     except Exception as e:
         logger.error(f"图像获取失败: {str(e)}")
@@ -97,16 +97,16 @@ async def predict(task_info: TaskModel) -> dict:
 
     # 模型预测，使用asyncio.to_thread在单独线程中运行同步函数
     try:
-        logger.info(f"开始使用{task_info.model_name}模型进行预测")
+        logger.info(f"开始使用{task_info.model}模型进行预测")
 
         s = datetime.datetime.now()
-        evals = model_api.eval_image(img, task_info.model_name)  # 得到字典
-        # evals = await asyncio.to_thread(model_api.eval_image, img, task_info.model_name)  # 得到字典
+        evals = model_api.eval_image(img, task_info.model)  # 得到字典
+        # evals = await asyncio.to_thread(model_api.eval_image, img, task_info.model)  # 得到字典
         e = datetime.datetime.now()
         time_delta = (e - s).total_seconds()
         evals['time_delta'] = time_delta
-        evals['model'] = task_info.model_name
-        logger.info(f"{task_info.model_name}模型预测完成，耗时: {time_delta}秒，结果如下")
+        evals['model'] = task_info.model
+        logger.info(f"{task_info.model}模型预测完成，耗时: {time_delta}秒，结果如下")
         for k,v in evals.items():
             logger.info(f"{k}: {v}")
     except Exception as e:
@@ -148,7 +148,7 @@ async def predict_v1(task_info: DetectAndEvalModel) -> dict:
     # 读取图像文件
     try:
         logger.info("开始下载/读取图像")
-        img, save_path, hash256 = await asyncio.to_thread(get_img, task_info.img_src, False)
+        img, save_path, hash256 = await asyncio.to_thread(get_img, task_info.image_url, False)
         logger.info("图像获取成功，hash256: " + hash256)
     except Exception as e:
         logger.error(f"图像获取失败: {str(e)}")
@@ -165,7 +165,7 @@ async def predict_v1(task_info: DetectAndEvalModel) -> dict:
         logger.info("开始执行检测和评估流程")
         result = model_api.detect_and_eval(
             img,
-            task_info.model_name,
+            task_info.model,
             task_info.conf_threshold,
             task_info.iou_threshold
         )
@@ -241,7 +241,7 @@ async def predict_v2(task_info: DetectAndEvalModel) -> dict:
     # 读取图像文件
     try:
         logger.info("开始下载/读取图像")
-        img, save_path, hash256 = await asyncio.to_thread(get_img, task_info.img_src, False)
+        img, save_path, hash256 = await asyncio.to_thread(get_img, task_info.image_url, False)
         logger.info("图像获取成功，hash256: " + hash256)
     except Exception as e:
         logger.error(f"图像获取失败: {str(e)}")
@@ -254,7 +254,7 @@ async def predict_v2(task_info: DetectAndEvalModel) -> dict:
             "evaluation_result": None,
             "total_time_delta": 0.0,
             "image_hash": "",
-            "model_name": task_info.model_name
+            "model_name": task_info.model
         }
 
     # 执行检测和评估
@@ -262,7 +262,7 @@ async def predict_v2(task_info: DetectAndEvalModel) -> dict:
         logger.info("开始执行检测和评估流程")
         result = model_api.detect_and_eval(
             img,
-            task_info.model_name,
+            task_info.model,
             task_info.conf_threshold,
             task_info.iou_threshold
         )
