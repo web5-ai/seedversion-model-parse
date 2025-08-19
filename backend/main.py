@@ -269,7 +269,7 @@ async def predict_v2(task_info: DetectAndEvalModel) -> dict:
 
         # 添加图像信息到结果中
         result['image_hash'] = hash256
-        result['model_name'] = task_info.model_name
+        result['model_name'] = task_info.model
 
         # 记录结果
         if result.get("success"):
@@ -293,7 +293,7 @@ async def predict_v2(task_info: DetectAndEvalModel) -> dict:
             "evaluation_result": None,
             "total_time_delta": 0.0,
             "image_hash": hash256,
-            "model_name": task_info.model_name
+            "model_name": task_info.model
         }
 
 # @app.get("/history")
