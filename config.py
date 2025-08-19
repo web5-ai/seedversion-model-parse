@@ -55,7 +55,7 @@ BACKEND_CONFIG = {
     # 服务器配置
     "host": "0.0.0.0",
     "port": 8123,
-    "reload": False,  # 禁用自动重载，避免重复初始化
+    "reload": True,  # 禁用自动重载，避免重复初始化
 
     # 内存监控配置
     "memory_limit": 1024 * 1024 * 10000,  # 10000MB

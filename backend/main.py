@@ -137,7 +137,7 @@ async def predict_v1(task_info: DetectAndEvalModel) -> dict:
             "time_delta": float        # 总耗时（秒）
         }
     '''
-    logger.info(f"收到检测和评估请求: 模型={task_info.model_name}, 图像源={task_info.img_src}")
+    logger.info(f"收到检测和评估请求: 模型={task_info.model}, 图像源={task_info.image_url}")
     logger.info(f"检测参数: conf_threshold={task_info.conf_threshold}, iou_threshold={task_info.iou_threshold}")
 
     # 设置随机种子
@@ -230,7 +230,7 @@ async def predict_v2(task_info: DetectAndEvalModel) -> dict:
             "model_name": str          # 使用的模型名称
         }
     '''
-    logger.info(f"收到V2预测请求: 模型={task_info.model_name}, 图像源={task_info.img_src}")
+    logger.info(f"收到V2预测请求: 模型={task_info.model}, 图像源={task_info.image_url}")
     logger.info(f"检测参数: conf_threshold={task_info.conf_threshold}, iou_threshold={task_info.iou_threshold}")
 
     # 设置随机种子
