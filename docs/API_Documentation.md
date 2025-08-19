@@ -80,17 +80,11 @@ curl -X POST "http://localhost:8123/v1/predict" \
 
 ```json
 {
-  "success": true,
-  "detection_result": {
-    "detection_count": 81,
-    "conf_threshold": 0.25,
-    "iou_threshold": 0.45
-  },
-  "evaluation_result": {
-    "protein": 25.50,
-    "oil": 38.87
-  },
-  "total_time_delta": 4.808
+  "detected": true,
+  "protein": 25.50,
+  "oil": 38.87,
+  "message": "检测和分析完成",
+  "time_delta": 0.657
 }
 ```
 
@@ -98,13 +92,11 @@ curl -X POST "http://localhost:8123/v1/predict" \
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `success` | boolean | 整体操作是否成功 |
-| `detection_result.detection_count` | integer | 检测到的对象数量 |
-| `detection_result.conf_threshold` | float | 使用的置信度阈值 |
-| `detection_result.iou_threshold` | float | 使用的IoU阈值 |
-| `evaluation_result.protein` | float | 蛋白质含量 (%) |
-| `evaluation_result.oil` | float | 油脂含量 (%) |
-| `total_time_delta` | float | 总处理时间 (秒) |
+| `detected` | boolean | 是否检测到种子对象 |
+| `protein` | float | 蛋白质含量 (%) |
+| `oil` | float | 油脂含量 (%) |
+| `message` | string | 状态消息 |
+| `time_delta` | float | 总处理时间 (秒) |
 
 ---
 
