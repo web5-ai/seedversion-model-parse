@@ -227,8 +227,6 @@ class ModelAPI:
 
             evals['memory_cost'] = memory_consumed
             evals['time_delta'] = time_delta
-            evals['seed'] = seed
-            evals['seed_info'] = seed_info
         except Exception as e:
             logger.error(f"图像预测失败: {str(e)}")
             raise e
