@@ -53,6 +53,13 @@ def main():
     try:
         import torch
         print("PyTorch导入成功")
+
+        # 快速CUDA检查
+        if torch.cuda.is_available():
+            print(f"CUDA可用: {torch.cuda.get_device_name(0)}")
+        else:
+            print("CUDA不可用，将使用CPU模式")
+
     except Exception as e:
         print(f"PyTorch导入失败: {str(e)}")
         return 1

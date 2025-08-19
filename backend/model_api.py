@@ -22,6 +22,9 @@ from utils.logging_config import get_logger
 # 获取日志记录器
 logger = get_logger("ModelAPI")
 
+# 全局计数器，用于跟踪ModelAPI实例
+_model_api_instance_count = 0
+
 class ModelAPI:
     """
     模型API类，提供模型推理功能
@@ -44,12 +47,34 @@ class ModelAPI:
             model_name: 模型名称
             device: 设备，默认为cuda，如果cuda不可用，则使用cpu
         """
-        check_dependencies() # 检查依赖
-        setup_environment() # 设置环境变量
+        # 环境初始化已在main.py中统一处理，这里不再重复调用
+        # check_dependencies() # 检查依赖
+        # setup_environment() # 设置环境变量
+
+        # 获取日志记录器
+        from utils.logging_config import get_logger
+        self.logger = get_logger("ModelAPI")
+
+        # 使用全局计数器控制日志输出
+        global _model_api_instance_count
+        _model_api_instance_count += 1
+
+        # 简化日志输出，使用INFO风格
+        if _model_api_instance_count == 1:
+            self.logger.info("Started ModelAPI initialization")
+        else:
+            self.logger.debug(f"Creating ModelAPI instance #{_model_api_instance_count}")
+
         if device is None: # 如果没有指定设备，则使用config中的默认设备
             self.loader = ModelLoader(device=MODEL_CONFIG['device']) # 初始化加载器
         else: # 如果指定了设备，则使用指定的设备
             self.loader = ModelLoader(device=device) # 初始化加载器
+
+        # 简化完成日志
+        if _model_api_instance_count == 1:
+            self.logger.info("ModelAPI initialization complete")
+        else:
+            self.logger.debug(f"ModelAPI instance #{_model_api_instance_count} ready")
     def generate_text_evals(self,output, components)->dict:
         """
         生成文本报告

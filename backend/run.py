@@ -13,10 +13,25 @@ import sys
 import time
 import json
 import torch
+import logging
 from config import SYSTEM_CONFIG, BACKEND_CONFIG
 from utils.logging_config import get_logger
-import os
 # os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'  # 添加这行解决OpenMP冲突
+
+class UvicornFormatter(logging.Formatter):
+    """自定义uvicorn日志格式化器，将uvicorn.error显示为Server"""
+
+    def format(self, record):
+        # 替换日志记录器名称
+        if record.name == "uvicorn.error":
+            record.name = "Server"
+        elif record.name == "uvicorn.access":
+            record.name = "Access"
+        elif record.name.startswith("uvicorn"):
+            record.name = "Server"
+
+        return super().format(record)
+
 def init_logging():
     """初始化后端日志配置（文件日志）"""
     # 生成带时间戳的日志文件名
@@ -30,19 +45,31 @@ def init_logging():
     # 只使用一个日志文件
     backend_log = os.path.join(log_path, "backend.log")
 
-    # 简化的uvicorn日志配置（只配置文件输出，控制台输出由统一日志管理）
+    # Backend统一日志配置 - 完全使用uvicorn标准格式
     logging_config = {
         "version": 1,
         "disable_existing_loggers": False,
         "formatters": {
-            "file": {
-                "format": BACKEND_CONFIG["log_format"],
-                "datefmt": BACKEND_CONFIG["log_date_format"],
+            "default": {
+                "format": "%(levelname)s:     %(message)s",
+            },
+            "access": {
+                "format": "%(levelname)s:     %(message)s",
             },
         },
         "handlers": {
+            "default": {
+                "formatter": "default",
+                "class": "logging.StreamHandler",
+                "stream": "ext://sys.stdout",
+            },
+            "access": {
+                "formatter": "access",
+                "class": "logging.StreamHandler",
+                "stream": "ext://sys.stdout",
+            },
             "file": {
-                "formatter": "file",
+                "formatter": "default",
                 "class": "logging.FileHandler",
                 "filename": backend_log,
                 "encoding": BACKEND_CONFIG["log_encoding"],
@@ -50,14 +77,35 @@ def init_logging():
         },
         "loggers": {
             "uvicorn": {
-                "handlers": ["file"],
+                "handlers": ["default", "file"],
                 "level": "INFO",
-                "propagate": True,  # 允许传播到根日志器（控制台输出）
+                "propagate": False,
+            },
+            "uvicorn.error": {
+                "handlers": ["default", "file"],
+                "level": "INFO",
+                "propagate": False,
             },
             "uvicorn.access": {
-                "handlers": ["file"],
+                "handlers": ["default", "file"],
                 "level": "INFO",
-                "propagate": False,  # 访问日志不传播，避免重复
+                "propagate": False,
+            },
+            # Backend模块使用uvicorn标准格式
+            "Backend": {
+                "handlers": ["default", "file"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "ModelAPI": {
+                "handlers": ["default", "file"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "Tools": {
+                "handlers": ["default", "file"],
+                "level": "INFO",
+                "propagate": False,
             },
         },
     }
@@ -143,20 +191,20 @@ def run_server():
 
     # 设置种子
     os.environ["PYTHONHASHSEED"] = str(SYSTEM_CONFIG["default_seed"])
+    # 获取日志记录器
+    logger = get_logger("Backend")
+
     # 系统环境变量
-    print("系统环境变量:")
-    print(f"PYTHONHASHSEED: {os.environ.get('PYTHONHASHSEED')}")
-    print(f"CUDA_VISIBLE_DEVICES: {os.environ.get('CUDA_VISIBLE_DEVICES')}")
+    logger.info("系统环境变量:")
+    logger.info(f"PYTHONHASHSEED: {os.environ.get('PYTHONHASHSEED')}")
+    logger.info(f"CUDA_VISIBLE_DEVICES: {os.environ.get('CUDA_VISIBLE_DEVICES')}")
     # 使用自定义日志配置启动 uvicorn
-    print("Starting uvicorn server...")
+    logger.info("Starting uvicorn server...")
 
     # # 启动内存监控线程
     # memory_thread = threading.Thread(target=monitor_memory)
     # memory_thread.daemon = True
     # memory_thread.start()
-
-    # 获取日志记录器
-    logger = get_logger("Backend")
 
     # 记录配置信息到日志（简化版本）
     logger.info("系统已加载配置")
@@ -173,10 +221,8 @@ def run_server():
         sys.path.append(root_dir)
         from backend.model_api import ModelAPI
 
-        # 初始化ModelAPI
-        logger.info("初始化ModelAPI...")
+        # 初始化ModelAPI用于环境测试（日志在ModelAPI内部处理）
         model_api = ModelAPI()
-        logger.info("ModelAPI初始化完成")
 
         # 运行环境测试，使用默认模型和种子
         logger.info("运行环境测试...")
@@ -223,13 +269,13 @@ def run_server():
     # heartbeat_thread.start()
 
     try:
-        # 在主线程中运行uvicorn服务器
+        # 在主线程中运行uvicorn服务器（使用默认日志配置）
         uvicorn.run(
             "main:app",
             host=BACKEND_CONFIG["host"],
             port=BACKEND_CONFIG["port"],
             reload=BACKEND_CONFIG["reload"],
-            log_config=logging_config
+            # 移除自定义log_config，使用uvicorn默认格式
         )
     except KeyboardInterrupt:
         logger.info("Server shutting down...")

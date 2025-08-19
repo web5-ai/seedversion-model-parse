@@ -12,14 +12,9 @@ from models import MPViT, ResNet, FasterNet, EfficientNet, Swin, VanillaNet, YOL
 from config import MODEL_CONFIG
 import traceback
 
-# 设置日志
-logger = logging.getLogger("ModelLoader")
-logger.propagate = False
-if not logger.handlers:
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
+# 使用统一的日志配置
+from utils.logging_config import get_logger
+logger = get_logger("ModelLoader")
 
 class ModelLoader:
     """
@@ -250,9 +245,10 @@ class ModelLoader:
                     logger.warning(f"YOLO模型文件不存在: {model_path}，将使用默认预训练模型")
                     model_path = "yolov8n.pt"  # 使用ultralytics的默认模型
 
-                # 创建YOLO模型实例
-                self.model = YOLO(model_path)
-                logger.info(f"成功加载YOLO模型: {model_path}")
+                # 创建YOLO模型实例，传递设备参数
+                from models.yolo import yolo_model
+                self.model = yolo_model(model_path, device=self.device)
+                logger.info(f"成功加载YOLO模型: {model_path}，设备: {self.device}")
 
             else:
                 raise ValueError(f"不支持的检测模型: {model_name}")

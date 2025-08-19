@@ -22,7 +22,7 @@ os.chdir(ROOT_DIR)
 # 导入集中的日志配置
 from utils.logging_config import get_logger
 
-# 获取日志记录器
+# 获取日志记录器 - Backend模块统一使用Backend标识
 logger = get_logger("Backend")
 
 # 使用统一的环境管理
@@ -47,10 +47,8 @@ from run import run_server
 
 app = FastAPI()
 
-# 初始化模型API，加载默认模型
-logger.info("初始化ModelAPI...")
+# 初始化模型API，加载默认模型（日志在ModelAPI内部处理）
 model_api = ModelAPI('cuda')
-logger.info("ModelAPI初始化完成")
 
 @app.get("/")
 def root():

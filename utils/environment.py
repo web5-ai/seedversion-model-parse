@@ -177,7 +177,43 @@ def _configure_device():
         if torch.cuda.is_available():
             device_name = torch.cuda.get_device_name(0)
             logger.info(f"CUDA可用: {device_name}")
-            MODEL_CONFIG["device"] = "cuda"
+
+            # 使用专门的CUDA兼容性检查
+            try:
+                from utils.cuda_compatibility import test_cuda_operations
+                test_results = test_cuda_operations()
+
+                # 根据测试结果决定使用的设备
+                if test_results["basic_cuda"] and test_results["tensor_operations"]:
+                    MODEL_CONFIG["device"] = "cuda"
+                    logger.info("CUDA功能测试通过，将使用CUDA进行计算")
+
+                    # 如果NMS失败，给出警告但仍使用CUDA
+                    if not test_results["torchvision_nms"]:
+                        logger.warning("torchvision NMS操作在CUDA上失败，检测功能可能受影响")
+                        logger.warning("建议运行: python -m utils.cuda_compatibility 查看详细修复建议")
+                else:
+                    logger.warning("CUDA基本操作测试失败，将使用CPU进行计算")
+                    logger.warning("建议运行: python -m utils.cuda_compatibility 查看详细修复建议")
+                    MODEL_CONFIG["device"] = "cpu"
+
+            except ImportError:
+                # 如果无法导入兼容性检查模块，使用简单测试
+                logger.warning("无法导入CUDA兼容性检查模块，使用简单测试")
+                try:
+                    test_tensor = torch.randn(100, 100).cuda()
+                    test_result = test_tensor.sum()
+                    test_result.cpu()
+                    MODEL_CONFIG["device"] = "cuda"
+                    logger.info("简单CUDA测试通过，将使用CUDA进行计算")
+                except Exception as simple_test_error:
+                    logger.warning(f"简单CUDA测试失败: {str(simple_test_error)[:100]}...")
+                    MODEL_CONFIG["device"] = "cpu"
+
+            except Exception as cuda_test_error:
+                logger.warning(f"CUDA兼容性检查失败: {str(cuda_test_error)[:100]}...")
+                logger.warning("检测到CUDA兼容性问题，将使用CPU进行计算")
+                MODEL_CONFIG["device"] = "cpu"
         else:
             logger.info("CUDA不可用，将使用CPU进行计算")
             MODEL_CONFIG["device"] = "cpu"

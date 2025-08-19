@@ -22,7 +22,7 @@ from utils.logging_config import get_logger
 # MODEL_OPTIONS = Literal['MPViT', 'ResNet', 'FasterNet', 'EfficientNet', 'Swin', 'VanillaNet']
 
 # 获取日志记录器
-logger = get_logger("Backend/Tools")
+logger = get_logger("Tools")
 
 def get_img(img_url:str, ps=True):
     '''
