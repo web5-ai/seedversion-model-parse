@@ -253,9 +253,17 @@ class ModelAPI:
 
             # 使用配置中的默认阈值
             if conf_threshold is None:
-                conf_threshold = MODEL_CONFIG.get("detect_conf_threshold", 0.25)
+                conf_threshold = MODEL_CONFIG.get("detect_conf_threshold", 0.9)
             if iou_threshold is None:
-                iou_threshold = MODEL_CONFIG.get("detect_iou_threshold", 0.45)
+                iou_threshold = MODEL_CONFIG.get("detect_iou_threshold", 0.5)
+
+            # 特殊处理：如果conf_threshold是0.5，自动调整为0.9
+            if conf_threshold == 0.5:
+                logger.info(f"⚠️ 检测阶段：置信度阈值0.5自动调整为0.9")
+                conf_threshold = 0.9
+
+            # 输出检测参数
+            logger.info(f"🎯 目标检测参数 - 置信度阈值: {conf_threshold}, IoU阈值: {iou_threshold}")
 
             # 加载检测模型
             detect_model = MODEL_CONFIG.get("detect_model", "YOLO")
@@ -335,6 +343,19 @@ class ModelAPI:
         """
         import datetime
 
+        # 获取实际使用的阈值参数
+        actual_conf = conf_threshold if conf_threshold is not None else self.config["detect_conf_threshold"]
+        actual_iou = iou_threshold if iou_threshold is not None else self.config["detect_iou_threshold"]
+
+        # 特殊处理：如果conf_threshold是0.5，自动调整为0.9
+        if conf_threshold == 0.5:
+            logger.info(f"⚠️ 检测到置信度阈值为0.5，自动调整为0.9")
+            conf_threshold = 0.9
+            actual_conf = 0.9
+
+        # 输出预测请求参数
+        logger.info(f"🔍 预测请求参数 - 模型: {model_name}, 置信度阈值: {actual_conf}, IoU阈值: {actual_iou}")
+
         # 记录总开始时间
         total_start_time = datetime.datetime.now()
 
@@ -346,9 +367,12 @@ class ModelAPI:
         if not detection_result["success"]:
             return {
                 "success": False,
-                "stage": "detection",
-                "error": detection_result.get("error", "检测失败"),
-                "detection_result": detection_result
+                "detected": False,
+                "message": f"检测失败: {detection_result.get('error', '未知错误')}",
+                "objects": [],
+                "protein": 0.0,
+                "oil": 0.0,
+                "time_delta": 0.0
             }
 
         # 检查是否检测到对象
@@ -359,12 +383,12 @@ class ModelAPI:
 
             return {
                 "success": True,
-                "stage": "detection_only",
-                "message": "未检测到种子对象",
                 "detected": False,
-                "detection_result": detection_result,
-                "evaluation_result": None,
-                "total_time_delta": total_time_delta
+                "message": "未检测到种子对象",
+                "objects": detection_result.get("objects", []),
+                "protein": 0.0,
+                "oil": 0.0,
+                "time_delta": total_time_delta
             }
 
         # 第二步：成分分析
@@ -378,12 +402,12 @@ class ModelAPI:
 
             return {
                 "success": True,
-                "stage": "complete",
-                "message": "检测和分析完成",
                 "detected": True,
-                "detection_result": detection_result,
-                "evaluation_result": evaluation_result,
-                "total_time_delta": total_time_delta
+                "message": "检测和分析完成",
+                "objects": detection_result.get("objects", []),
+                "protein": evaluation_result.get("protein", 0.0),
+                "oil": evaluation_result.get("oil", 0.0),
+                "time_delta": total_time_delta
             }
 
         except Exception as e:
@@ -393,12 +417,12 @@ class ModelAPI:
 
             return {
                 "success": False,
-                "stage": "evaluation",
-                "error": str(e),
                 "detected": True,
-                "detection_result": detection_result,
-                "evaluation_result": None,
-                "total_time_delta": total_time_delta
+                "message": f"分析失败: {str(e)}",
+                "objects": detection_result.get("objects", []),
+                "protein": 0.0,
+                "oil": 0.0,
+                "time_delta": total_time_delta
             }
 
     def predict_v1(self, image, model_name: Literal['MPViT', 'ResNet', 'FasterNet', 'EfficientNet', 'Swin', 'VanillaNet'] = 'FasterNet',
@@ -421,6 +445,13 @@ class ModelAPI:
                 "time_delta": float    # 总耗时（秒）
             }
         """
+        # 获取实际使用的阈值参数
+        actual_conf = conf_threshold if conf_threshold is not None else self.config["detect_conf_threshold"]
+        actual_iou = iou_threshold if iou_threshold is not None else self.config["detect_iou_threshold"]
+
+        # 输出预测请求参数
+        logger.info(f"📊 V1预测请求 - 模型: {model_name}, 置信度阈值: {actual_conf}, IoU阈值: {actual_iou}")
+
         # 调用完整的检测和评估方法
         full_result = self.detect_and_eval(image, model_name, conf_threshold, iou_threshold)
 
@@ -444,7 +475,7 @@ class ModelAPI:
     def predict_v2(self, image, model_name: Literal['MPViT', 'ResNet', 'FasterNet', 'EfficientNet', 'Swin', 'VanillaNet'] = 'FasterNet',
                    conf_threshold: float = None, iou_threshold: float = None) -> dict:
         """
-        V2预测接口：返回完整结果，包含检测结果详情和数据
+        V2预测接口：返回简洁的完整结果
 
         Args:
             image: 输入图像
@@ -453,8 +484,23 @@ class ModelAPI:
             iou_threshold: 检测IoU阈值
 
         Returns:
-            完整的检测和评估结果字典
+            {
+                "success": bool,      # 操作是否成功
+                "detected": bool,     # 是否检测到对象
+                "message": str,       # 状态消息
+                "objects": list,      # 检测到的对象列表
+                "protein": float,     # 蛋白质含量
+                "oil": float,         # 油脂含量
+                "time_delta": float   # 总耗时（秒）
+            }
         """
+        # 获取实际使用的阈值参数
+        actual_conf = conf_threshold if conf_threshold is not None else self.config["detect_conf_threshold"]
+        actual_iou = iou_threshold if iou_threshold is not None else self.config["detect_iou_threshold"]
+
+        # 输出预测请求参数
+        logger.info(f"📈 V2预测请求 - 模型: {model_name}, 置信度阈值: {actual_conf}, IoU阈值: {actual_iou}")
+
         # 直接返回完整结果
         return self.detect_and_eval(image, model_name, conf_threshold, iou_threshold)
 

@@ -1,28 +1,37 @@
-# 油菜籽检测与成分分析 API 文档
+# 种子成分分析API文档
 
-## 概述
+## 📋 概述
 
-本API提供油菜籽图像的智能检测和成分分析功能，支持多种深度学习模型，可以检测图像中的油菜籽对象并预测其蛋白质和油脂含量。
+本系统提供基于深度学习的种子图像智能检测和成分分析功能。系统采用YOLO进行目标检测，结合多种CNN模型进行成分分析，可准确预测种子的蛋白质和油脂含量。
 
-**基础URL**: `http://localhost:8123`
+**服务地址**: `http://localhost:8123`
 
-## API版本
+## 🚀 API版本
 
-- **v1**: 简化版本，返回基础检测和分析结果
-- **v2**: 完整版本，返回详细的检测信息和分析数据
+| 版本 | 接口路径 | 特点 | 适用场景 |
+|------|----------|------|----------|
+| **V1** | `/v1/predict` | 简化结果，核心数据 | 简单应用，快速集成 |
+| **V2** | `/v2/predict` | 详细结果，包含检测信息 | 调试监控，完整分析 |
 
----
+## 📥 请求参数
 
-## 🔧 通用参数说明
+两个版本使用相同的请求格式：
 
-### 请求参数
+```json
+{
+    "image_url": "string",           // 图像路径或URL (必填)
+    "model": "FasterNet",            // 分析模型名称 (可选)
+    "conf_threshold": 0.9,           // 检测置信度阈值 (可选)
+    "iou_threshold": 0.5             // IoU阈值 (可选)
+}
+```
 
 | 参数名 | 类型 | 必填 | 默认值 | 说明 |
 |--------|------|------|--------|------|
 | `image_url` | string | ✅ | - | 图像URL或本地路径 |
 | `model` | string | ❌ | "FasterNet" | 成分分析模型名称 |
-| `conf_threshold` | float | ❌ | 0.25 | 检测置信度阈值 (0.0-1.0) |
-| `iou_threshold` | float | ❌ | 0.45 | IoU阈值 (0.0-1.0) |
+| `conf_threshold` | float | ❌ | 0.9 | 检测置信度阈值 (0.0-1.0) |
+| `iou_threshold` | float | ❌ | 0.5 | IoU阈值 (0.0-1.0) |
 
 ### 支持的模型
 
@@ -42,283 +51,182 @@
 - **范围**: 0.0 - 1.0
 - **效果**:
   - `0.15` (宽松): 检测更多对象，可能包含误检
-  - `0.25` (默认): 平衡的检测效果
-  - `0.4` (严格): 只保留高置信度检测，减少误检
+  - `0.5` (中等): 平衡的检测效果
+  - `0.9` (默认): 严格检测，减少误检
 
 #### iou_threshold (IoU阈值)
 - **作用**: 控制重复检测的过滤程度 (非极大值抑制)
 - **范围**: 0.0 - 1.0
 - **效果**:
   - `0.3` (积极过滤): 更积极地删除重叠检测框
-  - `0.45` (默认): 平衡的重叠容忍度
+  - `0.5` (默认): 平衡的重叠容忍度
   - `0.6` (宽松过滤): 允许更多重叠检测框
+
+## 📤 响应格式对比
+
+### V1 API 响应 (简化版)
+
+```json
+{
+    "detected": true,                // 是否检测到种子对象
+    "protein": 45.2,                 // 蛋白质含量 (%)
+    "oil": 38.7,                     // 油脂含量 (%)
+    "message": "检测和分析完成",      // 状态消息
+    "time_delta": 2.35               // 总耗时 (秒)
+}
+```
+
+### V2 API 响应 (详细版)
+
+```json
+{
+    "success": true,                 // 操作是否成功
+    "detected": true,                // 是否检测到种子对象
+    "message": "检测和分析完成",      // 状态消息
+    "objects": [                     // 检测到的对象列表
+        {
+            "confidence": 0.95,
+            "bbox": [100, 150, 200, 250],
+            "class": "seed"
+        }
+    ],
+    "protein": 45.2,                 // 蛋白质含量 (%)
+    "oil": 38.7,                     // 油脂含量 (%)
+    "time_delta": 2.35               // 总耗时 (秒)
+}
+```
+
+### 字段对比表
+
+| 字段 | V1 | V2 | 类型 | 说明 |
+|------|----|----|------|------|
+| `success` | ❌ | ✅ | bool | 操作是否成功 |
+| `detected` | ✅ | ✅ | bool | 是否检测到对象 |
+| `message` | ✅ | ✅ | string | 状态消息 |
+| `objects` | ❌ | ✅ | array | 检测对象详情 |
+| `protein` | ✅ | ✅ | float | 蛋白质含量 |
+| `oil` | ✅ | ✅ | float | 油脂含量 |
+| `time_delta` | ✅ | ✅ | float | 总耗时 |
 
 ---
 
-## 📡 API 接口
+## 📡 API 接口详情
 
-### 1. V1 预测接口 (简化版)
+### 1. V1 预测接口
 
 **接口**: `POST /v1/predict`
-
 **功能**: 返回简化的检测和分析结果，适用于快速获取核心数据
 
-#### 请求示例
+### 2. V2 预测接口
+
+**接口**: `POST /v2/predict`
+**功能**: 返回详细的检测和分析结果，包含检测对象信息和成功状态
+
+---
+
+## 🚀 快速开始
+
+### cURL示例
 
 ```bash
+# V1 API
 curl -X POST "http://localhost:8123/v1/predict" \
   -H "Content-Type: application/json" \
   -d '{
-    "image_url": "https://example.com/seed_image.jpg",
-    "model": "ResNet",
-    "conf_threshold": 0.25,
-    "iou_threshold": 0.45
+    "image_url": "path/to/image.jpg",
+    "model": "FasterNet",
+    "conf_threshold": 0.9
   }'
-```
 
-#### 响应格式
-
-```json
-{
-  "detected": true,
-  "protein": 25.50,
-  "oil": 38.87,
-  "message": "检测和分析完成",
-  "time_delta": 0.657
-}
-```
-
-#### 响应字段说明
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `detected` | boolean | 是否检测到种子对象 |
-| `protein` | float | 蛋白质含量 (%) |
-| `oil` | float | 油脂含量 (%) |
-| `message` | string | 状态消息 |
-| `time_delta` | float | 总处理时间 (秒) |
-
----
-
-### 2. V2 预测接口 (完整版)
-
-**接口**: `POST /v2/predict`
-
-**功能**: 返回完整的检测和分析结果，包含详细的检测信息
-
-#### 请求示例
-
-```bash
+# V2 API
 curl -X POST "http://localhost:8123/v2/predict" \
   -H "Content-Type: application/json" \
   -d '{
-    "image_url": "https://example.com/seed_image.jpg",
-    "model": "ResNet",
-    "conf_threshold": 0.3,
-    "iou_threshold": 0.4
+    "image_url": "path/to/image.jpg",
+    "model": "FasterNet",
+    "conf_threshold": 0.9
   }'
 ```
 
-#### 响应格式
+### Python示例
 
-```json
-{
-  "success": true,
-  "stage": "complete",
-  "message": "检测和分析完成",
-  "detected": true,
-  "detection_result": {
-    "success": true,
-    "detected": true,
-    "objects": [
-      {
-        "confidence": 0.85,
-        "class_id": 0,
-        "class_name": "rapeseed",
-        "bbox": [100, 150, 300, 350]
-      }
-    ],
-    "detection_count": 81,
-    "time_delta": 0.654,
-    "conf_threshold": 0.3,
-    "iou_threshold": 0.4
-  },
-  "evaluation_result": {
-    "protein": 25.50,
-    "oil": 38.87,
-    "time_delta": 3.914,
-    "memory_cost": 256.5
-  },
-  "total_time_delta": 4.568,
-  "image_hash": "abc123...",
-  "model_name": "ResNet"
+```python
+import requests
+
+# 请求数据
+data = {
+    "image_url": "tests/images/sample.jpg",
+    "model": "FasterNet",
+    "conf_threshold": 0.9,
+    "iou_threshold": 0.5
 }
+
+# V1 API调用
+response_v1 = requests.post("http://localhost:8123/v1/predict", json=data)
+result_v1 = response_v1.json()
+print(f"V1结果: 检测到={result_v1['detected']}, 蛋白质={result_v1['protein']:.1f}%")
+
+# V2 API调用
+response_v2 = requests.post("http://localhost:8123/v2/predict", json=data)
+result_v2 = response_v2.json()
+print(f"V2结果: 成功={result_v2['success']}, 对象数={len(result_v2['objects'])}")
 ```
 
-#### 响应字段说明
+## 🔧 特殊功能
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `success` | boolean | 整体操作是否成功 |
-| `stage` | string | 执行阶段 ("detection_only", "complete", "error") |
-| `message` | string | 状态消息 |
-| `detected` | boolean | 是否检测到对象 |
-| `detection_result` | object | 详细检测结果 |
-| `detection_result.objects` | array | 检测到的对象列表 |
-| `detection_result.objects[].confidence` | float | 对象置信度 |
-| `detection_result.objects[].bbox` | array | 边界框坐标 [x1, y1, x2, y2] |
-| `evaluation_result` | object | 成分分析结果 |
-| `evaluation_result.protein` | float | 蛋白质含量 (%) |
-| `evaluation_result.oil` | float | 油脂含量 (%) |
-| `evaluation_result.time_delta` | float | 分析耗时 (秒) |
-| `evaluation_result.memory_cost` | float | 内存消耗 (MB) |
-| `total_time_delta` | float | 总处理时间 (秒) |
-| `image_hash` | string | 图像哈希值 |
-| `model_name` | string | 使用的模型名称 |
+### 置信度自动调整
+当 `conf_threshold` 设置为 `0.5` 时，系统会自动调整为 `0.9`：
+```
+⚠️ 后台修改可能比较慢，所以只要检测到后台传递了默认值目前就自动做调整。检测到置信度阈值为0.5，自动调整为0.9
+```
 
----
+### 参数日志输出
+每次请求都会输出详细的参数信息：
+```
+🔍 预测请求参数 - 模型: FasterNet, 置信度阈值: 0.9, IoU阈值: 0.45
+🎯 目标检测参数 - 置信度阈值: 0.9, IoU阈值: 0.45
+🚀 YOLO检测参数 - 置信度: 0.9, IoU: 0.45
+```
+
+## 🎯 使用建议
+
+### 选择V1 API的场景
+- 简单的客户端应用
+- 只需要最终的分析结果
+- 对响应大小有要求
+- 快速集成
+
+### 选择V2 API的场景
+- 需要检测详情信息
+- 需要判断操作是否成功
+- 调试和监控应用
+- 需要显示检测框位置
+
+## 📈 性能说明
+
+- 两个接口性能完全相同
+- 平均响应时间: 1-3秒 (取决于图像大小和检测对象数量)
+- 支持并发请求
+- 自动CUDA/CPU设备选择
 
 ## 🚨 错误处理
 
-### 错误响应格式
+### 常见错误响应
 
 ```json
 {
   "success": false,
-  "error": "错误描述",
-  "stage": "error",
   "detected": false,
-  "total_time_delta": 0.0
+  "message": "图像获取失败: 文件不存在",
+  "objects": [],
+  "protein": 0.0,
+  "oil": 0.0,
+  "time_delta": 0.0
 }
 ```
 
-### 常见错误码
-
-| HTTP状态码 | 错误类型 | 说明 |
-|------------|----------|------|
-| 400 | Bad Request | 请求参数错误 |
-| 404 | Not Found | 图像URL无法访问 |
-| 422 | Unprocessable Entity | 参数验证失败 |
-| 500 | Internal Server Error | 服务器内部错误 |
-
 ---
 
-## 📊 使用示例
-
-### Python 示例
-
-```python
-import requests
-import json
-
-# V1 API 调用
-def call_v1_api(image_url, model="ResNet"):
-    url = "http://localhost:8123/v1/predict"
-    data = {
-        "image_url": image_url,
-        "model": model,
-        "conf_threshold": 0.25,
-        "iou_threshold": 0.45
-    }
-    
-    response = requests.post(url, json=data)
-    result = response.json()
-    
-    if result.get("success"):
-        print(f"检测到 {result['detection_result']['detection_count']} 个对象")
-        print(f"蛋白质: {result['evaluation_result']['protein']:.2f}%")
-        print(f"油脂: {result['evaluation_result']['oil']:.2f}%")
-    else:
-        print(f"检测失败: {result.get('error', '未知错误')}")
-
-# V2 API 调用
-def call_v2_api(image_url, model="ResNet"):
-    url = "http://localhost:8123/v2/predict"
-    data = {
-        "image_url": image_url,
-        "model": model,
-        "conf_threshold": 0.3,
-        "iou_threshold": 0.4
-    }
-    
-    response = requests.post(url, json=data)
-    result = response.json()
-    
-    if result.get("success") and result.get("detected"):
-        detection = result["detection_result"]
-        evaluation = result["evaluation_result"]
-        
-        print(f"检测结果: {detection['detection_count']} 个对象")
-        print(f"平均置信度: {sum(obj['confidence'] for obj in detection['objects']) / len(detection['objects']):.3f}")
-        print(f"成分分析: 蛋白质 {evaluation['protein']:.2f}%, 油脂 {evaluation['oil']:.2f}%")
-        print(f"总耗时: {result['total_time_delta']:.3f}秒")
-    else:
-        print(f"检测失败: {result.get('message', '未知错误')}")
-
-# 使用示例
-image_url = "https://example.com/rapeseed_image.jpg"
-call_v1_api(image_url, "ResNet")
-call_v2_api(image_url, "EfficientNet")
-```
-
-### JavaScript 示例
-
-```javascript
-// V1 API 调用
-async function callV1API(imageUrl, model = "ResNet") {
-    const response = await fetch("http://localhost:8123/v1/predict", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-            image_url: imageUrl,
-            model: model,
-            conf_threshold: 0.25,
-            iou_threshold: 0.45
-        })
-    });
-    
-    const result = await response.json();
-    
-    if (result.success) {
-        console.log(`检测到 ${result.detection_result.detection_count} 个对象`);
-        console.log(`蛋白质: ${result.evaluation_result.protein.toFixed(2)}%`);
-        console.log(`油脂: ${result.evaluation_result.oil.toFixed(2)}%`);
-    } else {
-        console.log(`检测失败: ${result.error || '未知错误'}`);
-    }
-}
-
-// 使用示例
-callV1API("https://example.com/rapeseed_image.jpg", "ResNet");
-```
-
----
-
-## 🔧 性能优化建议
-
-### 1. 模型选择
-- **快速检测**: 使用 `FasterNet` 或 `VanillaNet`
-- **平衡性能**: 使用 `ResNet` 或 `EfficientNet`
-- **最高精度**: 使用 `Swin` 或 `MPViT`
-
-### 2. 参数调优
-- **高密度种子**: `conf_threshold=0.3, iou_threshold=0.3`
-- **低质量图像**: `conf_threshold=0.15, iou_threshold=0.5`
-- **精确计数**: `conf_threshold=0.4, iou_threshold=0.35`
-
-### 3. 图像要求
-- **分辨率**: 建议 640x640 以上
-- **格式**: 支持 JPG, PNG, BMP
-- **质量**: 清晰度越高，检测效果越好
-
----
-
-## 📝 更新日志
-
-### v1.0.0 (2025-08-19)
-- ✅ 移除响应中的 `seed_info` 字段
-- ✅ 统一字段命名 (`model_name` → `model`, `img_src` → `image_url`)
-- ✅ 优化API响应结构
-- ✅ 完善错误处理机制
+**更新时间**: 2025-08-26
+**版本**: V2.0
+**维护者**: 种子成分分析系统团队

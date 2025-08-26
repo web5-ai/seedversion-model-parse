@@ -369,7 +369,7 @@ class ModelLoader:
 
             return output
 
-    def detect(self, image, conf_threshold: float = 0.25, iou_threshold: float = 0.45):
+    def detect(self, image, conf_threshold: float = 0.9, iou_threshold: float = 0.5):
         """
         使用检测模型进行目标检测
 
@@ -391,8 +391,10 @@ class ModelLoader:
 
             # 使用YOLO模型进行检测
             if self.model_name == "YOLO":
-                # YOLO模型的detect方法
-                results = self.model.detect(image)
+                # 输出YOLO检测参数
+                print(f"🚀 YOLO检测参数 - 置信度: {conf_threshold}, IoU: {iou_threshold}")
+                # YOLO模型的detect方法，传递置信度和IoU阈值
+                results = self.model.detect(image, conf_threshold, iou_threshold)
 
                 # 确保在检测后同步CUDA操作
                 if torch.cuda.is_available():

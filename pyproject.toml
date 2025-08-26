@@ -40,3 +40,4 @@ cache-dir = ".uv_cache"
 #    "torchvision==0.22",
 [tool.uv.sources]
 torch = { path = "E:/Proj/torch-2.6.0+cu126-cp310-abi3-win_amd64.whl" }
+torchvision = { path = "../torchvision-0.21.0+cu126-cp310-cp310-win_amd64.whl" }

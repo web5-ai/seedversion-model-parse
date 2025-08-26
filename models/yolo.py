@@ -30,19 +30,26 @@ class yolo_model:
             # 将PyTorch模型移动到指定设备
             if hasattr(self.model, 'model') and self.model.model is not None:
                 self.model.model.to(device)
-    def detect(self, image):
-        """使用YOLO模型进行目标检测"""
+    def detect(self, image, conf_threshold=0.9, iou_threshold=0.5):
+        """
+        使用YOLO模型进行目标检测
+
+        Args:
+            image: 输入图像
+            conf_threshold: 置信度阈值
+            iou_threshold: IoU阈值
+        """
         if self.is_onnx:
             # ONNX模型检测
             # ONNX模型在CPU上运行更稳定
-            results = self.model(image, device='cpu')
+            results = self.model(image, device='cpu', conf=conf_threshold, iou=iou_threshold)
         else:
             # PyTorch模型检测
             # 确保模型在正确的设备上
             if hasattr(self.model, 'model') and self.model.model is not None:
                 self.model.model.to(self.device)
 
-            # 进行检测，使用指定的设备
-            results = self.model(image, device=self.device)
+            # 进行检测，使用指定的设备和阈值参数
+            results = self.model(image, device=self.device, conf=conf_threshold, iou=iou_threshold)
 
         return results

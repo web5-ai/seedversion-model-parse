@@ -220,14 +220,12 @@ async def predict_v2(task_info: DetectAndEvalModel) -> dict:
     Returns:
         {
             "success": bool,           # 整体操作是否成功
-            "stage": str,              # 执行阶段
-            "message": str,            # 状态消息
             "detected": bool,          # 是否检测到对象
-            "detection_result": dict,  # 检测结果详情
-            "evaluation_result": dict, # 成分分析结果（如果有）
-            "total_time_delta": float, # 总耗时（秒）
-            "image_hash": str,         # 图像哈希值
-            "model_name": str          # 使用的模型名称
+            "message": str,            # 状态消息
+            "objects": list,           # 检测到的对象列表
+            "protein": float,          # 蛋白质含量
+            "oil": float,              # 油脂含量
+            "time_delta": float        # 总耗时（秒）
         }
     '''
     logger.info(f"收到V2预测请求: 模型={task_info.model}, 图像源={task_info.image_url}")
@@ -247,14 +245,12 @@ async def predict_v2(task_info: DetectAndEvalModel) -> dict:
         logger.error(f"图像获取失败: {str(e)}")
         return {
             "success": False,
-            "stage": "image_loading",
-            "error": f"图像获取失败: {str(e)}",
             "detected": False,
-            "detection_result": None,
-            "evaluation_result": None,
-            "total_time_delta": 0.0,
-            "image_hash": "",
-            "model_name": task_info.model
+            "message": f"图像获取失败: {str(e)}",
+            "objects": [],
+            "protein": 0.0,
+            "oil": 0.0,
+            "time_delta": 0.0
         }
 
     # 执行检测和评估
@@ -267,18 +263,14 @@ async def predict_v2(task_info: DetectAndEvalModel) -> dict:
             task_info.iou_threshold
         )
 
-        # 添加图像信息到结果中
-        result['image_hash'] = hash256
-        result['model_name'] = task_info.model
-
         # 记录结果
         if result.get("success"):
             if result.get("detected"):
-                logger.info(f"V2检测和评估完成: 检测到 {result['detection_result']['detection_count']} 个对象，总耗时: {result['total_time_delta']:.3f}秒")
+                logger.info(f"V2检测和评估完成: 检测到 {len(result.get('objects', []))} 个对象，蛋白质: {result.get('protein', 0):.2f}%, 油脂: {result.get('oil', 0):.2f}%, 耗时: {result.get('time_delta', 0):.3f}秒")
             else:
-                logger.info(f"V2检测完成但未发现种子对象，耗时: {result['total_time_delta']:.3f}秒")
+                logger.info(f"V2检测完成但未发现种子对象，耗时: {result.get('time_delta', 0):.3f}秒")
         else:
-            logger.error(f"V2检测和评估失败: {result.get('error', '未知错误')}")
+            logger.error(f"V2检测和评估失败: {result.get('message', '未知错误')}")
 
         return result
 
@@ -286,14 +278,12 @@ async def predict_v2(task_info: DetectAndEvalModel) -> dict:
         logger.error(f"V2检测和评估过程失败: {str(e)}")
         return {
             "success": False,
-            "stage": "processing",
-            "error": f"处理失败: {str(e)}",
             "detected": False,
-            "detection_result": None,
-            "evaluation_result": None,
-            "total_time_delta": 0.0,
-            "image_hash": hash256,
-            "model_name": task_info.model
+            "message": f"处理失败: {str(e)}",
+            "objects": [],
+            "protein": 0.0,
+            "oil": 0.0,
+            "time_delta": 0.0
         }
 
 # @app.get("/history")

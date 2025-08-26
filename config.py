@@ -11,9 +11,9 @@ MODEL_CONFIG = {
     "device": "cuda", # 在setup_environment函数中初始化设置
     # 检测模型配置
     "detect_model": "YOLO",
-    "detect_model_path": "weights/yolov11.onnx",
-    "detect_conf_threshold": 0.25,
-    "detect_iou_threshold": 0.45
+    "detect_model_path": "weights/detect1.onnx",
+    "detect_conf_threshold": 0.9,
+    "detect_iou_threshold": 0.5
     # "quality_thresholds": {
     #     "油酸": 0.5,  # 油酸含量高于0.5为优质
     #     "亚油酸": 0.3  # 亚油酸含量高于0.3为营养价值高
