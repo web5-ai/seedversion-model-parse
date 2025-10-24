@@ -180,10 +180,9 @@ async def predict_v1(task_info: DetectAndEvalModel) -> dict:
         }
 
         # 如果检测到对象且有评估结果，提取数值
-        if result.get("detected") and result.get("evaluation_result"):
-            eval_result = result["evaluation_result"]
-            v1_result["protein"] = eval_result.get("protein", 0.0)
-            v1_result["oil"] = eval_result.get("oil", 0.0)
+        if result.get("detected"):
+            v1_result["protein"] = result.get("protein", 0.0)
+            v1_result["oil"] = result.get("oil", 0.0)
 
         # 记录结果
         if result.get("success"):

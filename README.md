@@ -58,6 +58,16 @@ python test_model.py batch --model FasterNet --dir tests/images
 python test_model.py multi --image tests/test_images/image_custom.png
 ```
 
+#### 测试种子分类器
+
+```bash
+# 测试所有分类器模型
+python test_classifiers.py
+
+# 测试单个分类器
+python -c "from test_classifiers import test_classifier_model; test_classifier_model('EfficientNetB0Classifier', 'tests/images/100.jpg')"
+```
+
 ### 启动后端服务
 
 ```bash
@@ -174,12 +184,22 @@ optional arguments:
 
 ## 支持的模型
 
-- FasterNet (默认)
-- ResNet
-- Swin
-- VanillaNet
-- MPViT
-- EfficientNet
+### 🧪 成分分析模型（回归）
+- **FasterNet** (默认) - 快速高效的成分预测
+- **ResNet** - 经典残差网络架构
+- **Swin** - Swin Transformer架构
+- **VanillaNet** - 轻量级网络
+- **MPViT** - 多尺度视觉Transformer
+- **EfficientNet** - 高效网络架构
+
+### 🌱 种子分类模型（分类）
+- **EfficientNetB0Classifier** - 推荐使用，99%+准确率，15.3MB
+- **ResNet18Classifier** - 快速推理，99%+准确率，42.6MB
+- **CustomCNNClassifier** - 轻量级自定义CNN（可选）
+
+### 🎯 目标检测模型
+- **EfficientNetB0Classifier** - 当前默认，种子分类检测，99%+准确率
+- **YOLO** - 传统目标检测（可选配置）
 
 ## 注意事项
 

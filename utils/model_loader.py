@@ -8,7 +8,11 @@ import random
 import numpy as np
 from PIL import Image
 from typing import Literal
-from models import MPViT, ResNet, FasterNet, EfficientNet, Swin, VanillaNet, YOLO, REGRESS_MODEL_OPTIONS, DETECT_MODEL_OPTIONS
+from models import (
+    MPViT, ResNet, FasterNet, EfficientNet, Swin, VanillaNet, YOLO,
+    EfficientNetB0Classifier, ResNet18Classifier, CustomCNNClassifier,
+    REGRESS_MODEL_OPTIONS, DETECT_MODEL_OPTIONS, CLASSIFIER_MODEL_OPTIONS
+)
 from config import MODEL_CONFIG
 import traceback
 
@@ -264,6 +268,75 @@ class ModelLoader:
             logger.error(f"加载检测模型失败: {str(e)}")
             logger.error(traceback.format_exc())
             return False
+
+    def load_classifier_model(self, model_name: str, model_path: str = None):
+        """
+        加载种子分类器模型
+
+        Args:
+            model_name: 分类器模型名称 ('EfficientNetB0Classifier', 'ResNet18Classifier', 'CustomCNNClassifier')
+            model_path: 模型权重文件路径
+
+        Returns:
+            bool: 加载是否成功
+        """
+        try:
+            self.model_name = model_name
+
+            # 根据模型名称选择对应的模型类
+            if model_name == "EfficientNetB0Classifier":
+                model_class = EfficientNetB0Classifier
+                default_weight_file = "EfficientNetB0Classifier.pth"
+            elif model_name == "ResNet18Classifier":
+                model_class = ResNet18Classifier
+                default_weight_file = "ResNet18Classifier.pth"
+            elif model_name == "CustomCNNClassifier":
+                model_class = CustomCNNClassifier
+                default_weight_file = "CustomCNNClassifier.pth"
+            else:
+                raise ValueError(f"不支持的分类器模型: {model_name}")
+
+            # 创建模型实例
+            self.model = model_class(num_classes=2, device=self.device)
+            self.model.to(self.device)
+
+            # 确定权重文件路径
+            if model_path is None:
+                # 使用默认路径
+                model_path = os.path.join(MODEL_CONFIG['model_path'], default_weight_file)
+
+            # 确保使用绝对路径
+            if not os.path.isabs(model_path):
+                root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                model_path = os.path.join(root_dir, model_path)
+
+            logger.info(f"加载分类器模型: {model_path}")
+
+            # 检查模型文件是否存在
+            if not os.path.exists(model_path):
+                raise FileNotFoundError(f"分类器模型文件不存在: {model_path}")
+
+            # 加载权重
+            if self.debug:
+                self.state_dict = self.model.load_model_weight(model_path)
+            else:
+                self.model.load_model_weight(model_path)
+
+            # 设置为评估模式
+            self.model.eval()
+
+            param = next(self.model.parameters())
+            logger.info(f'分类器模型加载到{param.device}设备上')
+            logger.info(f"成功加载{model_name}分类器模型")
+
+            return True
+
+        except Exception as e:
+            logger.warning(f"加载{model_name}分类器模型失败: {str(e)}")
+            tb = traceback.format_exc()
+            logger.warning(f"加载分类器模型错误信息: {tb}")
+            return False
+
     def preprocess_image(self, image:Image.Image, size=224):
         """
         预处理图像
@@ -368,6 +441,57 @@ class ModelLoader:
                 output = output.to(torch.float32)
 
             return output
+
+    def classify(self, image_tensor):
+        """
+        使用分类器模型进行种子分类预测
+
+        Args:
+            image_tensor: 预处理后的图像张量
+
+        Returns:
+            dict: 分类预测结果
+        """
+        # 确保在预测前同步CUDA操作
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+
+        # 使用确定性计算
+        with torch.no_grad():
+            # 确保输入张量的数据类型一致
+            if image_tensor.dtype != torch.float32:
+                image_tensor = image_tensor.to(torch.float32)
+
+            # 检查模型是否有predict方法（分类器模型）
+            if hasattr(self.model, 'predict'):
+                result = self.model.predict(image_tensor)
+            else:
+                # 如果没有predict方法，使用标准的forward + softmax
+                logits = self.model(image_tensor)
+                probabilities = torch.nn.functional.softmax(logits, dim=1)
+                predicted_class = torch.argmax(probabilities, dim=1)
+                confidence = torch.max(probabilities, dim=1)[0]
+
+                # 构造结果
+                pred_idx = predicted_class[0].item()
+                conf = confidence[0].item()
+                probs = probabilities[0]
+
+                result = {
+                    'predicted_class': 'rapeseed' if pred_idx == 1 else 'background',
+                    'predicted_index': pred_idx,
+                    'confidence': conf,
+                    'probabilities': {
+                        'background': probs[0].item(),
+                        'rapeseed': probs[1].item()
+                    }
+                }
+
+            # 确保在预测后同步CUDA操作
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+
+            return result
 
     def detect(self, image, conf_threshold: float = 0.9, iou_threshold: float = 0.5):
         """

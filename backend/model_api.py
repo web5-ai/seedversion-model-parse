@@ -267,18 +267,43 @@ class ModelAPI:
 
             # 加载检测模型
             detect_model = MODEL_CONFIG.get("detect_model", "YOLO")
-            success = self.loader.load_detect_model(detect_model)
 
-            if not success:
-                return {
-                    "success": False,
-                    "error": "检测模型加载失败",
-                    "detected": False,
-                    "objects": []
-                }
+            # 判断是分类器还是检测器
+            if detect_model in ["EfficientNetB0Classifier", "ResNet18Classifier", "CustomCNNClassifier"]:
+                # 使用分类器模型
+                success = self.loader.load_classifier_model(detect_model)
+                if not success:
+                    return {
+                        "success": False,
+                        "error": "分类器模型加载失败",
+                        "detected": False,
+                        "objects": []
+                    }
 
-            # 进行目标检测
-            results = self.loader.detect(image, conf_threshold, iou_threshold)
+                # 进行分类预测
+                from PIL import Image as PILImage
+                if not isinstance(image, PILImage.Image):
+                    # 如果不是PIL图像，先转换
+                    if hasattr(image, 'shape'):  # numpy array
+                        image = PILImage.fromarray(image)
+                    else:
+                        raise ValueError("不支持的图像格式")
+
+                image_tensor = self.loader.preprocess_image(image, size=224)
+                results = self.loader.classify(image_tensor)
+            else:
+                # 使用传统检测模型
+                success = self.loader.load_detect_model(detect_model)
+                if not success:
+                    return {
+                        "success": False,
+                        "error": "检测模型加载失败",
+                        "detected": False,
+                        "objects": []
+                    }
+
+                # 进行目标检测
+                results = self.loader.detect(image, conf_threshold, iou_threshold)
 
             # 卸载检测模型
             self.loader.unload_model()
@@ -287,22 +312,42 @@ class ModelAPI:
             detected_objects = []
             has_detection = False
 
-            if results:
-                for result in results:
-                    if hasattr(result, 'boxes') and result.boxes is not None and len(result.boxes) > 0:
-                        has_detection = True
-                        # 提取检测框信息
-                        boxes = result.boxes
-                        for i in range(len(boxes)):
-                            box_info = {
-                                "confidence": float(boxes.conf[i]) if hasattr(boxes, 'conf') else 0.0,
-                                "class_id": int(boxes.cls[i]) if hasattr(boxes, 'cls') else -1,
-                                "bbox": boxes.xyxy[i].tolist() if hasattr(boxes, 'xyxy') else []
-                            }
-                            # 添加类别名称
-                            if hasattr(result, 'names') and box_info["class_id"] in result.names:
-                                box_info["class_name"] = result.names[box_info["class_id"]]
-                            detected_objects.append(box_info)
+            if detect_model in ["EfficientNetB0Classifier", "ResNet18Classifier", "CustomCNNClassifier"]:
+                # 处理分类器结果
+                if results and results.get('predicted_class') == 'rapeseed':
+                    has_detection = True
+                    # 为分类器创建一个虚拟的检测框（覆盖整个图像）
+                    if hasattr(image, 'size'):
+                        width, height = image.size
+                    else:
+                        # 如果是numpy数组
+                        height, width = image.shape[:2]
+
+                    detected_objects.append({
+                        "confidence": results.get('confidence', 0.0),
+                        "class_id": 1,  # rapeseed
+                        "class_name": "rapeseed",
+                        "bbox": [0, 0, width, height],  # 整个图像
+                        "classification_result": results
+                    })
+            else:
+                # 处理传统检测器结果
+                if results:
+                    for result in results:
+                        if hasattr(result, 'boxes') and result.boxes is not None and len(result.boxes) > 0:
+                            has_detection = True
+                            # 提取检测框信息
+                            boxes = result.boxes
+                            for i in range(len(boxes)):
+                                box_info = {
+                                    "confidence": float(boxes.conf[i]) if hasattr(boxes, 'conf') else 0.0,
+                                    "class_id": int(boxes.cls[i]) if hasattr(boxes, 'cls') else -1,
+                                    "bbox": boxes.xyxy[i].tolist() if hasattr(boxes, 'xyxy') else []
+                                }
+                                # 添加类别名称
+                                if hasattr(result, 'names') and box_info["class_id"] in result.names:
+                                    box_info["class_name"] = result.names[box_info["class_id"]]
+                                detected_objects.append(box_info)
 
             # 记录结束时间
             end_time = datetime.datetime.now()
@@ -344,8 +389,8 @@ class ModelAPI:
         import datetime
 
         # 获取实际使用的阈值参数
-        actual_conf = conf_threshold if conf_threshold is not None else self.config["detect_conf_threshold"]
-        actual_iou = iou_threshold if iou_threshold is not None else self.config["detect_iou_threshold"]
+        actual_conf = conf_threshold if conf_threshold is not None else MODEL_CONFIG["detect_conf_threshold"]
+        actual_iou = iou_threshold if iou_threshold is not None else MODEL_CONFIG["detect_iou_threshold"]
 
         # 特殊处理：如果conf_threshold是0.5，自动调整为0.9
         if conf_threshold == 0.5:
@@ -446,8 +491,8 @@ class ModelAPI:
             }
         """
         # 获取实际使用的阈值参数
-        actual_conf = conf_threshold if conf_threshold is not None else self.config["detect_conf_threshold"]
-        actual_iou = iou_threshold if iou_threshold is not None else self.config["detect_iou_threshold"]
+        actual_conf = conf_threshold if conf_threshold is not None else MODEL_CONFIG["detect_conf_threshold"]
+        actual_iou = iou_threshold if iou_threshold is not None else MODEL_CONFIG["detect_iou_threshold"]
 
         # 输出预测请求参数
         logger.info(f"📊 V1预测请求 - 模型: {model_name}, 置信度阈值: {actual_conf}, IoU阈值: {actual_iou}")
@@ -495,8 +540,8 @@ class ModelAPI:
             }
         """
         # 获取实际使用的阈值参数
-        actual_conf = conf_threshold if conf_threshold is not None else self.config["detect_conf_threshold"]
-        actual_iou = iou_threshold if iou_threshold is not None else self.config["detect_iou_threshold"]
+        actual_conf = conf_threshold if conf_threshold is not None else MODEL_CONFIG["detect_conf_threshold"]
+        actual_iou = iou_threshold if iou_threshold is not None else MODEL_CONFIG["detect_iou_threshold"]
 
         # 输出预测请求参数
         logger.info(f"📈 V2预测请求 - 模型: {model_name}, 置信度阈值: {actual_conf}, IoU阈值: {actual_iou}")
