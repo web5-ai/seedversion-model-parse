@@ -10,8 +10,8 @@ MODEL_CONFIG = {
     "component_names": ["蛋白质", "油脂"],
     "device": "cuda", # 在setup_environment函数中初始化设置
     # 检测模型配置
-    "detect_model": "EfficientNetB0Classifier",
-    "detect_model_path": "weights/EfficientNetB0Classifier.pth",
+    "detect_model": "YOLO",
+    "detect_model_path": "weights/3cls.onnx",
     "detect_conf_threshold": 0.9,
     "detect_iou_threshold": 0.5
     # "quality_thresholds": {

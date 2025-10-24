@@ -18,7 +18,7 @@ from utils.model_loader import ModelLoader
 from config import MODEL_CONFIG, SYSTEM_CONFIG
 from utils.environment import check_dependencies, setup_environment
 from utils.logging_config import get_logger
-
+from tools import get_detection_counts
 # 获取日志记录器
 logger = get_logger("ModelAPI")
 
@@ -257,11 +257,6 @@ class ModelAPI:
             if iou_threshold is None:
                 iou_threshold = MODEL_CONFIG.get("detect_iou_threshold", 0.5)
 
-            # 特殊处理：如果conf_threshold是0.5，自动调整为0.9
-            if conf_threshold == 0.5:
-                logger.info(f"⚠️ 检测阶段：置信度阈值0.5自动调整为0.9")
-                conf_threshold = 0.9
-
             # 输出检测参数
             logger.info(f"🎯 目标检测参数 - 置信度阈值: {conf_threshold}, IoU阈值: {iou_threshold}")
 
@@ -276,7 +271,7 @@ class ModelAPI:
                     return {
                         "success": False,
                         "error": "分类器模型加载失败",
-                        "detected": False,
+                        "object_classes_counts": False,
                         "objects": []
                     }
 
@@ -298,7 +293,7 @@ class ModelAPI:
                     return {
                         "success": False,
                         "error": "检测模型加载失败",
-                        "detected": False,
+                        "object_classes_counts": [],
                         "objects": []
                     }
 
@@ -309,13 +304,14 @@ class ModelAPI:
             self.loader.unload_model()
 
             # 分析检测结果
-            detected_objects = []
-            has_detection = False
+            object_classes_objects = [] # 检测到的种子
+            object_classes_counts = {} # 检测到种子类别的统计
 
+            # 这个是训练的其他的分类器，原来只有一个YOLO，YOLO也够用
             if detect_model in ["EfficientNetB0Classifier", "ResNet18Classifier", "CustomCNNClassifier"]:
                 # 处理分类器结果
                 if results and results.get('predicted_class') == 'rapeseed':
-                    has_detection = True
+
                     # 为分类器创建一个虚拟的检测框（覆盖整个图像）
                     if hasattr(image, 'size'):
                         width, height = image.size
@@ -323,19 +319,19 @@ class ModelAPI:
                         # 如果是numpy数组
                         height, width = image.shape[:2]
 
-                    detected_objects.append({
+                    object_classes_objects.append({
                         "confidence": results.get('confidence', 0.0),
                         "class_id": 1,  # rapeseed
                         "class_name": "rapeseed",
                         "bbox": [0, 0, width, height],  # 整个图像
                         "classification_result": results
                     })
-            else:
-                # 处理传统检测器结果
+            else: # 不是自定义的分类器的话，就会默认使用YOLO
+                # 处理YOLO检测器结果
                 if results:
                     for result in results:
                         if hasattr(result, 'boxes') and result.boxes is not None and len(result.boxes) > 0:
-                            has_detection = True
+                            object_classes_counts = get_detection_counts(result)
                             # 提取检测框信息
                             boxes = result.boxes
                             for i in range(len(boxes)):
@@ -347,7 +343,7 @@ class ModelAPI:
                                 # 添加类别名称
                                 if hasattr(result, 'names') and box_info["class_id"] in result.names:
                                     box_info["class_name"] = result.names[box_info["class_id"]]
-                                detected_objects.append(box_info)
+                                object_classes_objects.append(box_info)
 
             # 记录结束时间
             end_time = datetime.datetime.now()
@@ -355,9 +351,9 @@ class ModelAPI:
 
             return {
                 "success": True,
-                "detected": has_detection,
-                "objects": detected_objects,
-                "detection_count": len(detected_objects),
+                "object_classes_counts": object_classes_counts,
+                "objects": object_classes_objects,
+                "detection_count": len(object_classes_objects),
                 "time_delta": time_delta,
                 "conf_threshold": conf_threshold,
                 "iou_threshold": iou_threshold
@@ -368,7 +364,7 @@ class ModelAPI:
             return {
                 "success": False,
                 "error": str(e),
-                "detected": False,
+                "object_classes_counts": {},
                 "objects": []
             }
 
@@ -412,7 +408,7 @@ class ModelAPI:
         if not detection_result["success"]:
             return {
                 "success": False,
-                "detected": False,
+                "object_classes_counts": {},
                 "message": f"检测失败: {detection_result.get('error', '未知错误')}",
                 "objects": [],
                 "protein": 0.0,
@@ -421,14 +417,14 @@ class ModelAPI:
             }
 
         # 检查是否检测到对象
-        if not detection_result["detected"]:
+        if detection_result["object_classes_counts"] == {}:
             logger.info("未检测到种子对象，跳过成分分析")
             total_end_time = datetime.datetime.now()
             total_time_delta = (total_end_time - total_start_time).total_seconds()
 
             return {
                 "success": True,
-                "detected": False,
+                "object_classes_counts": {},
                 "message": "未检测到种子对象",
                 "objects": detection_result.get("objects", []),
                 "protein": 0.0,
@@ -447,7 +443,7 @@ class ModelAPI:
 
             return {
                 "success": True,
-                "detected": True,
+                "object_classes_counts": detection_result["object_classes_counts"],
                 "message": "检测和分析完成",
                 "objects": detection_result.get("objects", []),
                 "protein": evaluation_result.get("protein", 0.0),
@@ -462,7 +458,7 @@ class ModelAPI:
 
             return {
                 "success": False,
-                "detected": True,
+                "object_classes_counts": True,
                 "message": f"分析失败: {str(e)}",
                 "objects": detection_result.get("objects", []),
                 "protein": 0.0,
@@ -483,7 +479,7 @@ class ModelAPI:
 
         Returns:
             {
-                "detected": bool,      # 是否检测到种子对象
+                "object_classes_counts": list,      # 检测到的种子对象类别
                 "protein": float,      # 蛋白质含量（如果检测到）
                 "oil": float,          # 油脂含量（如果检测到）
                 "message": str,        # 状态消息
@@ -502,7 +498,7 @@ class ModelAPI:
 
         # 转换为v1格式的简化结果
         v1_result = {
-            "detected": full_result.get("detected", False),
+            "object_classes_counts": full_result.get("object_classes_counts", False),
             "protein": 0.0,
             "oil": 0.0,
             "message": full_result.get("message", ""),
@@ -510,7 +506,7 @@ class ModelAPI:
         }
 
         # 如果检测到对象且有评估结果，提取数值
-        if full_result.get("detected") and full_result.get("evaluation_result"):
+        if full_result.get("object_classes_counts") and full_result.get("evaluation_result"):
             eval_result = full_result["evaluation_result"]
             v1_result["protein"] = eval_result.get("protein", 0.0)
             v1_result["oil"] = eval_result.get("oil", 0.0)
@@ -531,7 +527,7 @@ class ModelAPI:
         Returns:
             {
                 "success": bool,      # 操作是否成功
-                "detected": bool,     # 是否检测到对象
+                "object_classes_counts": {},     # 检测到的对象类别统计
                 "message": str,       # 状态消息
                 "objects": list,      # 检测到的对象列表
                 "protein": float,     # 蛋白质含量
@@ -544,209 +540,7 @@ class ModelAPI:
         actual_iou = iou_threshold if iou_threshold is not None else MODEL_CONFIG["detect_iou_threshold"]
 
         # 输出预测请求参数
-        logger.info(f"📈 V2预测请求 - 模型: {model_name}, 置信度阈值: {actual_conf}, IoU阈值: {actual_iou}")
+        logger.info(f"V2预测请求 - 模型: {model_name}, 置信度阈值: {actual_conf}, IoU阈值: {actual_iou}")
 
         # 直接返回完整结果
         return self.detect_and_eval(image, model_name, conf_threshold, iou_threshold)
-
-    def draw_detection_boxes(self, image, conf_threshold: float = None, iou_threshold: float = None,
-                           show_confidence: bool = False, box_color: tuple = (0, 255, 0),
-                           text_color: tuple = (255, 255, 255), thickness: int = 2):
-        """
-        在图像上绘制检测框
-
-        Args:
-            image: 输入图像 (PIL Image 或 numpy array)
-            conf_threshold: 检测置信度阈值
-            iou_threshold: IoU阈值
-            show_confidence: 是否显示置信度，默认False
-            box_color: 检测框颜色 (R, G, B)，默认绿色
-            text_color: 文字颜色 (R, G, B)，默认白色
-            thickness: 线条粗细，默认2
-
-        Returns:
-            {
-                "success": bool,           # 是否成功
-                "detected": bool,          # 是否检测到对象
-                "annotated_image": Image,  # 标注后的图像
-                "detection_count": int,    # 检测到的对象数量
-                "detection_details": list, # 检测详情
-                "time_delta": float        # 耗时
-            }
-        """
-        import datetime
-        from PIL import Image, ImageDraw, ImageFont
-        import numpy as np
-
-        try:
-            start_time = datetime.datetime.now()
-
-            # 确保输入是PIL Image
-            if isinstance(image, np.ndarray):
-                image = Image.fromarray(image)
-            elif not isinstance(image, Image.Image):
-                raise ValueError("输入必须是PIL Image或numpy array")
-
-            # 创建图像副本用于绘制
-            annotated_image = image.copy()
-            draw = ImageDraw.Draw(annotated_image)
-
-            # 进行目标检测
-            detection_result = self.detect_objects(image, conf_threshold, iou_threshold)
-
-            if not detection_result["success"]:
-                return {
-                    "success": False,
-                    "detected": False,
-                    "annotated_image": annotated_image,
-                    "detection_count": 0,
-                    "detection_details": [],
-                    "time_delta": 0.0,
-                    "error": detection_result.get("error", "检测失败")
-                }
-
-            detection_details = []
-
-            # 如果检测到对象，绘制检测框
-            if detection_result["detected"] and detection_result["objects"]:
-                try:
-                    # 尝试加载字体，如果失败则使用默认字体
-                    try:
-                        font = ImageFont.truetype("arial.ttf", 16)
-                    except:
-                        font = ImageFont.load_default()
-
-                    for i, obj in enumerate(detection_result["objects"]):
-                        bbox = obj.get("bbox", [])
-                        confidence = obj.get("confidence", 0.0)
-                        class_name = obj.get("class_name", "object")
-
-                        if len(bbox) >= 4:
-                            x1, y1, x2, y2 = bbox[:4]
-
-                            # 绘制检测框
-                            draw.rectangle([x1, y1, x2, y2], outline=box_color, width=thickness)
-
-                            # 如果需要显示置信度，绘制文字
-                            if show_confidence:
-                                text = f"{class_name}: {confidence:.2f}"
-                                # 计算文字背景框
-                                text_bbox = draw.textbbox((x1, y1-20), text, font=font)
-                                draw.rectangle(text_bbox, fill=box_color)
-                                draw.text((x1, y1-20), text, fill=text_color, font=font)
-
-                            # 记录检测详情
-                            detection_details.append({
-                                "bbox": bbox,
-                                "confidence": confidence,
-                                "class_name": class_name,
-                                "box_id": i + 1
-                            })
-
-                except Exception as e:
-                    logger.warning(f"绘制检测框时出现警告: {str(e)}")
-
-            end_time = datetime.datetime.now()
-            time_delta = (end_time - start_time).total_seconds()
-
-            return {
-                "success": True,
-                "detected": detection_result["detected"],
-                "annotated_image": annotated_image,
-                "detection_count": len(detection_details),
-                "detection_details": detection_details,
-                "time_delta": time_delta
-            }
-
-        except Exception as e:
-            logger.error(f"绘制检测框失败: {str(e)}")
-            return {
-                "success": False,
-                "detected": False,
-                "annotated_image": image.copy() if hasattr(image, 'copy') else image,
-                "detection_count": 0,
-                "detection_details": [],
-                "time_delta": 0.0,
-                "error": str(e)
-            }
-
-    def predict_with_visualization(self, image, model_name: Literal['MPViT', 'ResNet', 'FasterNet', 'EfficientNet', 'Swin', 'VanillaNet'] = 'FasterNet',
-                                 conf_threshold: float = None, iou_threshold: float = None,
-                                 show_confidence: bool = False, return_v1_format: bool = True) -> dict:
-        """
-        预测并可视化检测结果，将检测框绘制在图像上
-
-        Args:
-            image: 输入图像
-            model_name: 用于成分分析的模型名称
-            conf_threshold: 检测置信度阈值
-            iou_threshold: IoU阈值
-            show_confidence: 是否在检测框中显示置信度
-            return_v1_format: 是否返回v1格式的简化结果，False则返回v2格式
-
-        Returns:
-            包含预测结果和标注图像的字典
-        """
-        import datetime
-
-        total_start_time = datetime.datetime.now()
-
-        try:
-            # 1. 进行预测（v1或v2格式）
-            if return_v1_format:
-                prediction_result = self.predict_v1(image, model_name, conf_threshold, iou_threshold)
-            else:
-                prediction_result = self.predict_v2(image, model_name, conf_threshold, iou_threshold)
-
-            # 2. 绘制检测框
-            visualization_result = self.draw_detection_boxes(
-                image, conf_threshold, iou_threshold, show_confidence
-            )
-
-            # 3. 组合结果
-            total_end_time = datetime.datetime.now()
-            total_time_delta = (total_end_time - total_start_time).total_seconds()
-
-            combined_result = {
-                "prediction": prediction_result,
-                "visualization": {
-                    "success": visualization_result["success"],
-                    "annotated_image": visualization_result["annotated_image"],
-                    "detection_count": visualization_result["detection_count"],
-                    "detection_details": visualization_result["detection_details"]
-                },
-                "total_time_delta": total_time_delta,
-                "show_confidence": show_confidence,
-                "format_version": "v1" if return_v1_format else "v2"
-            }
-
-            return combined_result
-
-        except Exception as e:
-            logger.error(f"预测和可视化失败: {str(e)}")
-            total_end_time = datetime.datetime.now()
-            total_time_delta = (total_end_time - total_start_time).total_seconds()
-
-            return {
-                "prediction": {
-                    "detected": False,
-                    "protein": 0.0,
-                    "oil": 0.0,
-                    "message": f"预测失败: {str(e)}",
-                    "time_delta": 0.0
-                } if return_v1_format else {
-                    "success": False,
-                    "error": f"预测失败: {str(e)}",
-                    "detected": False
-                },
-                "visualization": {
-                    "success": False,
-                    "annotated_image": image.copy() if hasattr(image, 'copy') else image,
-                    "detection_count": 0,
-                    "detection_details": [],
-                    "error": str(e)
-                },
-                "total_time_delta": total_time_delta,
-                "show_confidence": show_confidence,
-                "format_version": "v1" if return_v1_format else "v2"
-            }

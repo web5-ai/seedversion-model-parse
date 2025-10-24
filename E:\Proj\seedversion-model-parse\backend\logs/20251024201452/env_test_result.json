@@ -1,0 +1,69 @@
+{
+    "environment": {
+        "python_version": "3.10.18 (main, Sep 18 2025, 19:50:32) [Clang 20.1.4 ]",
+        "python_executable": "/home/qg/seedversion-model-parse/.venv/bin/python",
+        "python_path": [
+            "/home/qg/seedversion-model-parse",
+            "/home/qg/seedversion-model-parse/backend",
+            "/home/qg/.local/share/uv/python/cpython-3.10.18-linux-x86_64-gnu/lib/python310.zip",
+            "/home/qg/.local/share/uv/python/cpython-3.10.18-linux-x86_64-gnu/lib/python3.10",
+            "/home/qg/.local/share/uv/python/cpython-3.10.18-linux-x86_64-gnu/lib/python3.10/lib-dynload",
+            "/home/qg/seedversion-model-parse/.venv/lib/python3.10/site-packages",
+            "/home/qg/seedversion-model-parse",
+            "/home/qg/seedversion-model-parse/.venv/lib/python3.10/site-packages/setuptools/_vendor",
+            "/tmp/tmpf7eictcq",
+            "/home/qg/seedversion-model-parse",
+            "/home/qg/seedversion-model-parse",
+            "/home/qg/seedversion-model-parse",
+            "/home/qg/seedversion-model-parse"
+        ],
+        "working_directory": "/home/qg/seedversion-model-parse",
+        "torch_version": "2.6.0+cu124",
+        "torch_threads": 1,
+        "cuda_available": true,
+        "env_vars": {
+            "PYTHONPATH": "Not set",
+            "PYTHONHASHSEED": "123",
+            "CUDA_VISIBLE_DEVICES": "Not set",
+            "PATH": "/home/qg/seedversion-model-parse/.venv/bin:/home/qg/.vscode-server/bin/7d842fb85a0275a4a8e4d7e040d2625abbf7f084/bin/remote-cli:/home/qg/.local/bin:/home/qg/.nvm/versions/node/v22.20.0/bin:/home/qg/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/usr/lib/wsl/lib:/mnt/c/Windows/system32:/mnt/c/Windows:/mnt/c/Windows/System32/Wbem:/mnt/c/Windows/System32/WindowsPowerShell/v1.0/:/mnt/c/Windows/System32/OpenSSH/:/mnt/d/IDE/nvm:/mnt/d/IDE/nodejs:/mnt/c/Program Files/dotnet/:/mnt/c/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR:/mnt/c/Program Files (x86)/NVIDIA Corporation/PhysX/Common:/mnt/c/Program Files/Docker/Docker/resources/bin:/mnt/d/IDE/Git/cmd:/mnt/d/IDE/uv-x86_64-pc-windows-msvc:/mnt/c/Users/Administrator/AppData/Local/Microsoft/WindowsApps:/mnt/d/IDE/nvm:/mnt/d/IDE/nodejs:/mnt/d/IDE/Microsoft VS Code/bin:/mnt/d/IDE/uv-x86_64-pc-windows-msvc:/snap/bin:/home/qg/.vscode-server/extensions/ms-python.debugpy-2025.14.1-linux-x64/bundled/scripts/noConfigScripts:/home/qg/.vscode-server/data/User/globalStorage/github.copilot-chat/debugCommand",
+            "VIRTUAL_ENV": "/home/qg/seedversion-model-parse/.venv"
+        },
+        "process_id": 18103,
+        "parent_process_id": 18095,
+        "process_name": "python",
+        "process_cmdline": [
+            "/home/qg/seedversion-model-parse/.venv/bin/python",
+            "/home/qg/.vscode-server/extensions/ms-python.debugpy-2025.14.1-linux-x64/bundled/libs/debugpy/adapter/../../debugpy/launcher/../../debugpy",
+            "--connect",
+            "127.0.0.1:44981",
+            "--configure-qt",
+            "none",
+            "--adapter-access-token",
+            "95fd0a6ed1c85ab53bc7460a296c8fc83631f97153daeeda83c87775077ecde4",
+            "/home/qg/seedversion-model-parse/backend/main.py"
+        ],
+        "cuda_version": "12.4",
+        "gpu_name": "NVIDIA GeForce RTX 3080",
+        "cuda_device_count": 1,
+        "cuda_current_device": 0,
+        "cudnn_version": 90100,
+        "cudnn_enabled": true,
+        "cudnn_deterministic": true,
+        "cudnn_benchmark": false
+    },
+    "model": {},
+    "image": {
+        "error": "测试图像不存在: /home/qg/seedversion-model-parse/tests/test_images/image_custom.jpg"
+    },
+    "prediction": {},
+    "seed_info": {
+        "set_seed": 123,
+        "torch_cuda_seed": 123,
+        "torch_cuda_seeds_by_device": {
+            "device_0": 123
+        },
+        "env_pythonhashseed": "123",
+        "torch_deterministic": true,
+        "torch_benchmark": false
+    }
+}

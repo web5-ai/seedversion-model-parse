@@ -445,23 +445,23 @@ class ModelLoader:
     def classify(self, image_tensor):
         """
         使用分类器模型进行种子分类预测
-
+        
         Args:
             image_tensor: 预处理后的图像张量
-
+        
         Returns:
             dict: 分类预测结果
         """
         # 确保在预测前同步CUDA操作
         if torch.cuda.is_available():
             torch.cuda.synchronize()
-
+        
         # 使用确定性计算
         with torch.no_grad():
             # 确保输入张量的数据类型一致
             if image_tensor.dtype != torch.float32:
                 image_tensor = image_tensor.to(torch.float32)
-
+            
             # 检查模型是否有predict方法（分类器模型）
             if hasattr(self.model, 'predict'):
                 result = self.model.predict(image_tensor)
@@ -471,26 +471,39 @@ class ModelLoader:
                 probabilities = torch.nn.functional.softmax(logits, dim=1)
                 predicted_class = torch.argmax(probabilities, dim=1)
                 confidence = torch.max(probabilities, dim=1)[0]
-
+                
                 # 构造结果
                 pred_idx = predicted_class[0].item()
                 conf = confidence[0].item()
                 probs = probabilities[0]
-
+                
+                # 从配置获取类别名称
+                class_names = MODEL_CONFIG.get('class_names', ['background', 'rapeseed'])
+                num_classes = MODEL_CONFIG.get('num_classes', 2)
+                
+                # 确保类别名称数量与预测概率数量匹配
+                if len(class_names) != num_classes:
+                    class_names = [f'class_{i}' for i in range(num_classes)]
+                
+                # 构建多分类概率字典
+                prob_dict = {}
+                for j in range(num_classes):
+                    prob_dict[class_names[j]] = probs[j].item() if j < len(probs) else 0.0
+                
+                # 获取预测的类别名称
+                predicted_class_name = class_names[pred_idx] if pred_idx < len(class_names) else f'class_{pred_idx}'
+                
                 result = {
-                    'predicted_class': 'rapeseed' if pred_idx == 1 else 'background',
+                    'predicted_class': predicted_class_name,
                     'predicted_index': pred_idx,
                     'confidence': conf,
-                    'probabilities': {
-                        'background': probs[0].item(),
-                        'rapeseed': probs[1].item()
-                    }
+                    'probabilities': prob_dict
                 }
-
+            
             # 确保在预测后同步CUDA操作
             if torch.cuda.is_available():
                 torch.cuda.synchronize()
-
+            
             return result
 
     def detect(self, image, conf_threshold: float = 0.9, iou_threshold: float = 0.5):
@@ -516,7 +529,7 @@ class ModelLoader:
             # 使用YOLO模型进行检测
             if self.model_name == "YOLO":
                 # 输出YOLO检测参数
-                print(f"🚀 YOLO检测参数 - 置信度: {conf_threshold}, IoU: {iou_threshold}")
+                print(f"YOLO检测参数 - 置信度: {conf_threshold}, IoU: {iou_threshold}")
                 # YOLO模型的detect方法，传递置信度和IoU阈值
                 results = self.model.detect(image, conf_threshold, iou_threshold)
 

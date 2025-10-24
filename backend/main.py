@@ -8,10 +8,6 @@ current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if current_dir not in sys.path:
     sys.path.append(current_dir)
 
-# 首先设置正确的工作目录
-import os
-import sys
-
 # 获取项目根目录的绝对路径
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # 将项目根目录添加到Python路径
@@ -130,7 +126,7 @@ async def predict_v1(task_info: DetectAndEvalModel) -> dict:
 
     Returns:
         {
-            "detected": bool,          # 是否检测到种子对象
+            "object_classes_counts": {},          # 检测到的种子类别统计
             "protein": float,          # 蛋白质含量（如果检测到）
             "oil": float,              # 油脂含量（如果检测到）
             "message": str,            # 状态消息
@@ -153,7 +149,7 @@ async def predict_v1(task_info: DetectAndEvalModel) -> dict:
     except Exception as e:
         logger.error(f"图像获取失败: {str(e)}")
         return {
-            "detected": False,
+            "object_classes_counts": {},
             "protein": 0.0,
             "oil": 0.0,
             "message": f"图像获取失败: {str(e)}",
@@ -172,7 +168,7 @@ async def predict_v1(task_info: DetectAndEvalModel) -> dict:
 
         # 转换为v1格式的简化结果
         v1_result = {
-            "detected": result.get("detected", False),
+            "object_classes_counts": result.get("object_classes_counts", {}),
             "protein": 0.0,
             "oil": 0.0,
             "message": result.get("message", ""),
@@ -180,13 +176,13 @@ async def predict_v1(task_info: DetectAndEvalModel) -> dict:
         }
 
         # 如果检测到对象且有评估结果，提取数值
-        if result.get("detected"):
+        if result.get("object_classes_counts") != {}:
             v1_result["protein"] = result.get("protein", 0.0)
             v1_result["oil"] = result.get("oil", 0.0)
 
         # 记录结果
         if result.get("success"):
-            if result.get("detected"):
+            if result.get("object_classes_counts") != {}:
                 logger.info(f"检测和评估完成: 检测到对象，蛋白质: {v1_result['protein']:.2f}%, 油脂: {v1_result['oil']:.2f}%, 耗时: {v1_result['time_delta']:.3f}秒")
             else:
                 logger.info(f"检测完成但未发现种子对象，耗时: {v1_result['time_delta']:.3f}秒")
@@ -198,7 +194,7 @@ async def predict_v1(task_info: DetectAndEvalModel) -> dict:
     except Exception as e:
         logger.error(f"检测和评估过程失败: {str(e)}")
         return {
-            "detected": False,
+            "object_classes_counts": {},
             "protein": 0.0,
             "oil": 0.0,
             "message": f"处理失败: {str(e)}",
@@ -219,7 +215,7 @@ async def predict_v2(task_info: DetectAndEvalModel) -> dict:
     Returns:
         {
             "success": bool,           # 整体操作是否成功
-            "detected": bool,          # 是否检测到对象
+            "object_classes_counts": {},          # 检测到的种子类别统计
             "message": str,            # 状态消息
             "objects": list,           # 检测到的对象列表
             "protein": float,          # 蛋白质含量
@@ -244,7 +240,7 @@ async def predict_v2(task_info: DetectAndEvalModel) -> dict:
         logger.error(f"图像获取失败: {str(e)}")
         return {
             "success": False,
-            "detected": False,
+            "object_classes_counts": False,
             "message": f"图像获取失败: {str(e)}",
             "objects": [],
             "protein": 0.0,
@@ -264,7 +260,7 @@ async def predict_v2(task_info: DetectAndEvalModel) -> dict:
 
         # 记录结果
         if result.get("success"):
-            if result.get("detected"):
+            if result.get("object_classes_counts") != {}:
                 logger.info(f"V2检测和评估完成: 检测到 {len(result.get('objects', []))} 个对象，蛋白质: {result.get('protein', 0):.2f}%, 油脂: {result.get('oil', 0):.2f}%, 耗时: {result.get('time_delta', 0):.3f}秒")
             else:
                 logger.info(f"V2检测完成但未发现种子对象，耗时: {result.get('time_delta', 0):.3f}秒")
@@ -277,7 +273,7 @@ async def predict_v2(task_info: DetectAndEvalModel) -> dict:
         logger.error(f"V2检测和评估过程失败: {str(e)}")
         return {
             "success": False,
-            "detected": False,
+            "object_classes_counts": {},
             "message": f"处理失败: {str(e)}",
             "objects": [],
             "protein": 0.0,

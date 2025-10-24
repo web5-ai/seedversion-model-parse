@@ -10,10 +10,10 @@
 
 ## 🔗 接口地址
 
-| 版本 | 方法 | 路径 | 描述 |
-|------|------|------|------|
-| V1 | POST | `/v1/predict` | 简化结果接口 |
-| V2 | POST | `/v2/predict` | 详细结果接口 |
+| 版本 | 方法 | 路径          | 描述         |
+| ---- | ---- | ------------- | ------------ |
+| V1   | POST | `/v1/predict` | 简化结果接口 |
+| V2   | POST | `/v2/predict` | 详细结果接口 |
 
 ## 📥 请求参数
 
@@ -41,7 +41,7 @@
 
 ```json
 {
-    "detected": true,                // 是否检测到种子对象
+    "object_classes_counts": true,                // 是否检测到种子对象
     "protein": 45.2,                 // 蛋白质含量 (%)
     "oil": 38.7,                     // 油脂含量 (%)
     "message": "检测和分析完成",      // 状态消息
@@ -54,7 +54,7 @@
 ```json
 {
     "success": true,                 // 操作是否成功
-    "detected": true,                // 是否检测到种子对象
+    "object_classes_counts": true,                // 是否检测到种子对象
     "message": "检测和分析完成",      // 状态消息
     "objects": [                     // 检测到的对象列表
         {
@@ -71,15 +71,15 @@
 
 ## 📊 字段对比表
 
-| 字段 | V1 | V2 | 类型 | 说明 |
-|------|----|----|------|------|
-| `success` | ❌ | ✅ | bool | 操作是否成功 |
-| `detected` | ✅ | ✅ | bool | 是否检测到对象 |
-| `message` | ✅ | ✅ | string | 状态消息 |
-| `objects` | ❌ | ✅ | array | 检测对象详情 |
-| `protein` | ✅ | ✅ | float | 蛋白质含量 |
-| `oil` | ✅ | ✅ | float | 油脂含量 |
-| `time_delta` | ✅ | ✅ | float | 总耗时 |
+| 字段                    | V1  | V2  | 类型   | 说明           |
+| ----------------------- | --- | --- | ------ | -------------- |
+| `success`               | ❌   | ✅   | bool   | 操作是否成功   |
+| `object_classes_counts` | ✅   | ✅   | bool   | 是否检测到对象 |
+| `message`               | ✅   | ✅   | string | 状态消息       |
+| `objects`               | ❌   | ✅   | array  | 检测对象详情   |
+| `protein`               | ✅   | ✅   | float  | 蛋白质含量     |
+| `oil`                   | ✅   | ✅   | float  | 油脂含量       |
+| `time_delta`            | ✅   | ✅   | float  | 总耗时         |
 
 ## 🔄 处理流程
 
@@ -95,7 +95,7 @@
 **V1响应:**
 ```json
 {
-    "detected": true,
+    "object_classes_counts": true,
     "protein": 42.8,
     "oil": 35.6,
     "message": "检测和分析完成",
@@ -107,7 +107,7 @@
 ```json
 {
     "success": true,
-    "detected": true,
+    "object_classes_counts": true,
     "message": "检测和分析完成",
     "objects": [
         {
@@ -127,7 +127,7 @@
 **V1响应:**
 ```json
 {
-    "detected": false,
+    "object_classes_counts": false,
     "protein": 0.0,
     "oil": 0.0,
     "message": "未检测到种子对象",
@@ -139,7 +139,7 @@
 ```json
 {
     "success": true,
-    "detected": false,
+    "object_classes_counts": false,
     "message": "未检测到种子对象",
     "objects": [],
     "protein": 0.0,
@@ -153,7 +153,7 @@
 **V1响应:**
 ```json
 {
-    "detected": false,
+    "object_classes_counts": false,
     "protein": 0.0,
     "oil": 0.0,
     "message": "图像获取失败: 文件不存在",
@@ -165,7 +165,7 @@
 ```json
 {
     "success": false,
-    "detected": false,
+    "object_classes_counts": false,
     "message": "图像获取失败: 文件不存在",
     "objects": [],
     "protein": 0.0,
@@ -251,7 +251,7 @@ data = {
 # V1 API调用
 response_v1 = requests.post("http://localhost:8123/v1/predict", json=data)
 result_v1 = response_v1.json()
-print(f"V1结果: 检测到={result_v1['detected']}, 蛋白质={result_v1['protein']:.1f}%")
+print(f"V1结果: 检测到={result_v1['object_classes_counts']}, 蛋白质={result_v1['protein']:.1f}%")
 
 # V2 API调用
 response_v2 = requests.post("http://localhost:8123/v2/predict", json=data)

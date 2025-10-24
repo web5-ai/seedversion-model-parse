@@ -8,9 +8,9 @@
 
 ## 🚀 API版本
 
-| 版本 | 接口路径 | 特点 | 适用场景 |
-|------|----------|------|----------|
-| **V1** | `/v1/predict` | 简化结果，核心数据 | 简单应用，快速集成 |
+| 版本   | 接口路径      | 特点                   | 适用场景           |
+| ------ | ------------- | ---------------------- | ------------------ |
+| **V1** | `/v1/predict` | 简化结果，核心数据     | 简单应用，快速集成 |
 | **V2** | `/v2/predict` | 详细结果，包含检测信息 | 调试监控，完整分析 |
 
 ## 📥 请求参数
@@ -26,23 +26,23 @@
 }
 ```
 
-| 参数名 | 类型 | 必填 | 默认值 | 说明 |
-|--------|------|------|--------|------|
-| `image_url` | string | ✅ | - | 图像URL或本地路径 |
-| `model` | string | ❌ | "FasterNet" | 成分分析模型名称 |
-| `conf_threshold` | float | ❌ | 0.9 | 检测置信度阈值 (0.0-1.0) |
-| `iou_threshold` | float | ❌ | 0.5 | IoU阈值 (0.0-1.0) |
+| 参数名           | 类型   | 必填 | 默认值      | 说明                     |
+| ---------------- | ------ | ---- | ----------- | ------------------------ |
+| `image_url`      | string | ✅    | -           | 图像URL或本地路径        |
+| `model`          | string | ❌    | "FasterNet" | 成分分析模型名称         |
+| `conf_threshold` | float  | ❌    | 0.9         | 检测置信度阈值 (0.0-1.0) |
+| `iou_threshold`  | float  | ❌    | 0.5         | IoU阈值 (0.0-1.0)        |
 
 ### 支持的模型
 
-| 模型名称 | 描述 | 推荐场景 |
-|----------|------|----------|
-| `FasterNet` | 快速轻量级模型 | 实时检测，资源受限环境 |
-| `ResNet` | 经典残差网络 | 平衡精度和速度 |
-| `EfficientNet` | 高效网络 | 高精度要求 |
-| `MPViT` | 多尺度视觉Transformer | 复杂场景 |
-| `Swin` | Swin Transformer | 最高精度要求 |
-| `VanillaNet` | 简化网络 | 快速推理 |
+| 模型名称       | 描述                  | 推荐场景               |
+| -------------- | --------------------- | ---------------------- |
+| `FasterNet`    | 快速轻量级模型        | 实时检测，资源受限环境 |
+| `ResNet`       | 经典残差网络          | 平衡精度和速度         |
+| `EfficientNet` | 高效网络              | 高精度要求             |
+| `MPViT`        | 多尺度视觉Transformer | 复杂场景               |
+| `Swin`         | Swin Transformer      | 最高精度要求           |
+| `VanillaNet`   | 简化网络              | 快速推理               |
 
 ### 参数详解
 
@@ -68,7 +68,7 @@
 
 ```json
 {
-    "detected": true,                // 是否检测到种子对象
+    "object_classes_counts": true,                // 是否检测到种子对象
     "protein": 45.2,                 // 蛋白质含量 (%)
     "oil": 38.7,                     // 油脂含量 (%)
     "message": "检测和分析完成",      // 状态消息
@@ -81,7 +81,7 @@
 ```json
 {
     "success": true,                 // 操作是否成功
-    "detected": true,                // 是否检测到种子对象
+    "object_classes_counts": true,                // 是否检测到种子对象
     "message": "检测和分析完成",      // 状态消息
     "objects": [                     // 检测到的对象列表
         {
@@ -98,15 +98,15 @@
 
 ### 字段对比表
 
-| 字段 | V1 | V2 | 类型 | 说明 |
-|------|----|----|------|------|
-| `success` | ❌ | ✅ | bool | 操作是否成功 |
-| `detected` | ✅ | ✅ | bool | 是否检测到对象 |
-| `message` | ✅ | ✅ | string | 状态消息 |
-| `objects` | ❌ | ✅ | array | 检测对象详情 |
-| `protein` | ✅ | ✅ | float | 蛋白质含量 |
-| `oil` | ✅ | ✅ | float | 油脂含量 |
-| `time_delta` | ✅ | ✅ | float | 总耗时 |
+| 字段                    | V1  | V2  | 类型   | 说明           |
+| ----------------------- | --- | --- | ------ | -------------- |
+| `success`               | ❌   | ✅   | bool   | 操作是否成功   |
+| `object_classes_counts` | ✅   | ✅   | bool   | 是否检测到对象 |
+| `message`               | ✅   | ✅   | string | 状态消息       |
+| `objects`               | ❌   | ✅   | array  | 检测对象详情   |
+| `protein`               | ✅   | ✅   | float  | 蛋白质含量     |
+| `oil`                   | ✅   | ✅   | float  | 油脂含量       |
+| `time_delta`            | ✅   | ✅   | float  | 总耗时         |
 
 ---
 
@@ -164,7 +164,7 @@ data = {
 # V1 API调用
 response_v1 = requests.post("http://localhost:8123/v1/predict", json=data)
 result_v1 = response_v1.json()
-print(f"V1结果: 检测到={result_v1['detected']}, 蛋白质={result_v1['protein']:.1f}%")
+print(f"V1结果: 检测到={result_v1['object_classes_counts']}, 蛋白质={result_v1['protein']:.1f}%")
 
 # V2 API调用
 response_v2 = requests.post("http://localhost:8123/v2/predict", json=data)
@@ -216,7 +216,7 @@ print(f"V2结果: 成功={result_v2['success']}, 对象数={len(result_v2['objec
 ```json
 {
   "success": false,
-  "detected": false,
+  "object_classes_counts": false,
   "message": "图像获取失败: 文件不存在",
   "objects": [],
   "protein": 0.0,
