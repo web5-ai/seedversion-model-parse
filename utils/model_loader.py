@@ -24,18 +24,21 @@ class ModelLoader:
     """
     模型加载器，用于加载预训练模型
     """
-    def __init__(self, model_path=None, debug=False, device='cpu'):
+    def __init__(self, model_path=None, debug=False, device='cpu', v3_mode=False):
         """
         初始化模型加载器
 
         Args:
             model_path: 模型路径，由调用函数提供，一般为config的默认值
             debug: 是否开启调试模式
+            device: 运行设备
+            v3_mode: 是否为V3模式（使用特殊的模型路径）
         """
         self.model_path = model_path
         self.debug = debug
         self.model = None
         self.device = device
+        self.v3_mode = v3_mode
 
 
     def _analyze_state_dict(self):
@@ -168,7 +171,12 @@ class ModelLoader:
             # self.model = model_class()  # 创建模型实例
             try:
                 model_class = globals()[model_name]  # 尝试从全局变量中获取模型类
-                self.model = model_class(device = self.device)  # 创建模型实例
+                # V3模式下的FasterNet模型需要4个输出
+                if self.v3_mode and model_name == 'FasterNet':
+                    self.model = model_class(num_classes=4, device=self.device)
+                    logger.info('⚠️ V3模式：FasterNet模型使用4个输出')
+                else:
+                    self.model = model_class(device = self.device)  # 创建模型实例
                 self.model.to(self.device)
                 param = next(self.model.parameters())
                 logger.info(f'模型加载到{param.device}设备上')
@@ -177,6 +185,10 @@ class ModelLoader:
             # 如果self.model_path已经指定，优先使用它
             if self.model_path and os.path.exists(self.model_path):
                 model_path = self.model_path
+            elif self.v3_mode and model_name == MODEL_CONFIG.get('v3_model', 'FasterNet'):
+                # V3模式：使用配置中的V3模型路径
+                model_path = MODEL_CONFIG.get('v3_model_path', 'weights/FasterNet_Normal_target_4.pt')
+                logger.info(f"⚠️ V3模式：使用特殊模型路径 {model_path}")
             else:
                 # 否则使用配置中的路径
                 model_path = os.path.join(MODEL_CONFIG['model_path'], f'{model_name}.pt')

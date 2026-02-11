@@ -69,6 +69,9 @@ class ModelAPI:
             self.loader = ModelLoader(device=MODEL_CONFIG['device']) # 初始化加载器
         else: # 如果指定了设备，则使用指定的设备
             self.loader = ModelLoader(device=device) # 初始化加载器
+        
+        # 创建V3专用的加载器实例
+        self.v3_loader = ModelLoader(device=MODEL_CONFIG['device'], v3_mode=True) # 初始化V3加载器
 
         # 简化完成日志
         if _model_api_instance_count == 1:
@@ -94,27 +97,46 @@ class ModelAPI:
         decimal_places = 6  # 保留6位小数
         output_np = np.round(output_np, decimal_places)
 
-        # 如果输出维度大于预期的成分数量，只取前几个值
-        expected_components = MODEL_CONFIG["expected_components"]
-        if len(output_np) > expected_components:
-            logger.warning(f"模型输出维度({len(output_np)})大于预期成分数量({expected_components})，只取前{expected_components}个值")
-            output_np = output_np[:expected_components]
+        # 初始化返回字典
+        result = {
+            "protein": 0.0,
+            "oil": 0.0,
+            "water": 0.0,
+            "cho": 0.0
+        }
 
-        oil = output_np[0] # 蛋白质含量
-        protein = output_np[1] # 油含量
-
+        # 处理不同维度的输出
+        if len(output_np) >= 2:
+            # 基础成分：油脂和蛋白质
+            oil = output_np[0] # 油含量
+            protein = output_np[1] # 蛋白质含量
+            result["oil"] = float(oil)
+            result["protein"] = float(protein)
+        
+        if len(output_np) >= 4:
+            # 额外成分：水分和CHO
+            water = output_np[2] # 水分含量
+            cho = output_np[3] # CHO含量
+            result["water"] = float(water)
+            result["cho"] = float(cho)
 
         # 打印数值结果
         logger.info("=== 油菜籽成分含量预测报告 ===")
         logger.info(f'预测模型: {self.model_name if self.model_name else "未知模型"}')
         logger.info("成分含量预测结果:")
-        for i, comp in enumerate(components):
-            logger.info(f"{comp}: {output_np[i]:.4f}")
+        
+        # 输出所有成分
+        if len(output_np) >= 1:
+            logger.info(f"油脂: {result['oil']:.4f}")
+        if len(output_np) >= 2:
+            logger.info(f"蛋白质: {result['protein']:.4f}")
+        if len(output_np) >= 3:
+            logger.info(f"水分: {result['water']:.4f}")
+        if len(output_np) >= 4:
+            logger.info(f"CHO: {result['cho']:.4f}")
+            
         logger.info("===       报告结束       ===")
-        return  {
-            "protein": float(protein),
-            "oil": float(oil),
-        }
+        return result
 
     def set_seed(self, seed:int = None):
         '''
@@ -232,7 +254,101 @@ class ModelAPI:
             raise e
 
         return evals
+    
+    def eval_image_v3(self, image, model_name:Literal['MPViT', 'ResNet', 'FasterNet', 'EfficientNet', 'Swin', 'VanillaNet'])->dict:
+        """
+        V3版本的图像预测方法，使用v3_loader加载模型
 
+        Args:
+            image: 图像文件
+            model_name: 模型名称
+
+        Returns:
+            预测结果的字典
+        """
+        import datetime
+
+        try:
+            # 记录开始时间
+            start_time = datetime.datetime.now()
+
+            # 检查是否有可用的CUDA设备
+            if MODEL_CONFIG['device'] == 'cuda':
+                # 获取初始显存使用情况
+                initial_memory = torch.cuda.memory_allocated()
+            else:
+                logger.warning("未使用CUDA，无法监控显存消耗。")
+                initial_memory = 0
+
+            # 强制设置随机种子，确保结果可重复
+            seed = self.v3_loader.set_seed(SYSTEM_CONFIG['default_seed'])
+
+            # 获取随机种子信息
+            seed_info = self.v3_loader.get_seed_info()
+
+            # 使用v3_loader加载模型
+            self.v3_loader.load_model(model_name)
+            self.model_name = model_name
+
+            # 预处理图像
+            size = 256 if model_name == 'Swin' else 224
+
+            # 确保在预处理前同步CUDA操作
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+
+            preprocessed_image = self.v3_loader.preprocess_image(image, size)
+
+            # 确保在预处理后同步CUDA操作
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+
+            output = self.v3_loader.predict(preprocessed_image)
+            # 打印模型返回的原始数据
+            logger.info("=== V3模型原始输出数据 ===")
+            logger.info(f"原始输出类型: {type(output)}")
+            if isinstance(output, torch.Tensor):
+                logger.info(f"原始输出形状: {output.shape}")
+                logger.info(f"原始输出值: {output}")
+                logger.info(f"原始输出值(分离): {output.detach().cpu().numpy()}")
+            elif isinstance(output, (list, tuple)):
+                logger.info(f"原始输出长度: {len(output)}")
+                for i, item in enumerate(output):
+                    if isinstance(item, torch.Tensor):
+                        logger.info(f"输出[{i}] 形状: {item.shape}, 值: {item}")
+                    else:
+                        logger.info(f"输出[{i}] 类型: {type(item)}, 值: {item}")
+            else:
+                logger.info(f"原始输出: {output}")
+            logger.info("=== V3原始输出数据结束 ===")
+            self.v3_loader.unload_model()
+            # 生成文本报告
+            component_names = MODEL_CONFIG["component_names"]
+            evals = self.generate_text_evals(output,component_names)
+
+            if torch.cuda.is_available():
+                # 获取最终显存使用情况
+                final_memory = torch.cuda.memory_allocated()
+                # 计算显存消耗
+                memory_consumed = final_memory - initial_memory
+                # 转化为MB
+                memory_consumed = memory_consumed / (1024 * 1024)
+                logger.info(f"V3图像预测过程中显存消耗: {memory_consumed} MB")
+            else:
+                memory_consumed = 0
+
+            # 记录结束时间并计算耗时
+            end_time = datetime.datetime.now()
+            time_delta = (end_time - start_time).total_seconds()
+
+            evals['memory_cost'] = memory_consumed
+            evals['time_delta'] = time_delta
+        except Exception as e:
+            logger.error(f"V3图像预测失败: {str(e)}")
+            raise e
+
+        return evals
+    
     def detect_objects(self, image, conf_threshold: float = None, iou_threshold: float = None) -> dict:
         """
         对图像进行目标检测
@@ -262,6 +378,7 @@ class ModelAPI:
 
             # 加载检测模型
             detect_model = MODEL_CONFIG.get("detect_model", "YOLO")
+            logger.info(f"🔍 加载检测模型: {detect_model}")
 
             # 判断是分类器还是检测器
             if detect_model in ["EfficientNetB0Classifier", "ResNet18Classifier", "CustomCNNClassifier"]:
@@ -512,6 +629,130 @@ class ModelAPI:
             v1_result["oil"] = eval_result.get("oil", 0.0)
 
         return v1_result
+
+    def detect_and_eval_v3(self, image, conf_threshold: float = None, iou_threshold: float = None) -> dict:
+        """
+        V3版本的检测和评估方法，使用不同的模型加载方式
+
+        Args:
+            image: 输入图像
+            conf_threshold: 检测置信度阈值
+            iou_threshold: 检测IoU阈值
+
+        Returns:
+            包含检测和分析结果的字典
+        """
+        import datetime
+
+        # V3固定使用FasterNet模型
+        model_name = "FasterNet"
+
+        # 获取实际使用的阈值参数
+        actual_conf = conf_threshold if conf_threshold is not None else MODEL_CONFIG["detect_conf_threshold"]
+        actual_iou = iou_threshold if iou_threshold is not None else MODEL_CONFIG["detect_iou_threshold"]
+
+        # 特殊处理：如果conf_threshold是0.5，自动调整为0.9
+        if conf_threshold == 0.5:
+            logger.info(f"⚠️ 检测到置信度阈值为0.5，自动调整为0.9")
+            conf_threshold = 0.9
+            actual_conf = 0.9
+
+        # 输出预测请求参数
+        logger.info(f"🔍 V3预测请求参数 : 置信度阈值: {actual_conf}, IoU阈值: {actual_iou}")
+
+        # 记录总开始时间
+        total_start_time = datetime.datetime.now()
+
+        # 第一步：目标检测
+        logger.info("开始目标检测...")
+        detection_result = self.detect_objects(image, conf_threshold, iou_threshold)
+
+        # 检查检测是否成功
+        if not detection_result["success"]:
+            return {
+                "success": False,
+                "object_classes_counts": {},
+                "message": f"检测失败: {detection_result.get('error', '未知错误')}",
+                "objects": [],
+                "protein": 0.0,
+                "oil": 0.0,
+                "water": 0.0,
+                "cho": 0.0,
+                "time_delta": 0.0
+            }
+
+        # 检查是否检测到对象
+        if detection_result["object_classes_counts"] == {}:
+            logger.info("未检测到种子对象，跳过成分分析")
+            total_end_time = datetime.datetime.now()
+            total_time_delta = (total_end_time - total_start_time).total_seconds()
+
+            return {
+                "success": True,
+                "object_classes_counts": {},
+                "message": "未检测到种子对象",
+                "objects": detection_result.get("objects", []),
+                "protein": 0.0,
+                "oil": 0.0,
+                "water": 0.0,
+                "cho": 0.0,
+                "time_delta": total_time_delta
+            }
+
+        # 第二步：成分分析（V3特殊模型加载）
+        logger.info(f"检测到 {detection_result['detection_count']} 个对象，开始V3成分分析...")
+        try:
+        
+            # 使用v3_loader进行评估
+            evaluation_result = self.eval_image_v3(image, model_name)
+
+            # 计算总耗时
+            total_end_time = datetime.datetime.now()
+            total_time_delta = (total_end_time - total_start_time).total_seconds()
+
+            # 构建返回结果，包含所有成分指标
+            result = {
+                "success": True,
+                "object_classes_counts": detection_result["object_classes_counts"],
+                "message": "V3检测和分析完成",
+                "objects": detection_result.get("objects", []),
+                "protein": evaluation_result.get("protein", 0.0),
+                "oil": evaluation_result.get("oil", 0.0),
+                "water": evaluation_result.get("water", 0.0),
+                "cho": evaluation_result.get("cho", 0.0),
+                "time_delta": total_time_delta
+            }
+
+            # 输出完整结果日志
+            logger.info("=== V3模型预测完整结果 ===")
+            logger.info(f"✅ V3检测和分析完成")
+            logger.info(f"🎯 检测到的对象: {result['object_classes_counts']}")
+            logger.info(f"🔬 V3成分分析结果:")
+            logger.info(f"   蛋白质: {result['protein']:.2f}%")
+            logger.info(f"   油脂: {result['oil']:.2f}%")
+            logger.info(f"   水分: {result['water']:.2f}%")
+            logger.info(f"   CHO: {result['cho']:.2f}%")
+            logger.info(f"⏱️  总耗时: {result['time_delta']:.2f}秒")
+            logger.info("=== V3结果展示结束 ===")
+
+            return result
+
+        except Exception as e:
+            logger.error(f"V3成分分析失败: {str(e)}")
+            total_end_time = datetime.datetime.now()
+            total_time_delta = (total_end_time - total_start_time).total_seconds()
+
+            return {
+                "success": False,
+                "object_classes_counts": True,
+                "message": f"V3分析失败: {str(e)}",
+                "objects": detection_result.get("objects", []),
+                "protein": 0.0,
+                "oil": 0.0,
+                "water": 0.0,
+                "cho": 0.0,
+                "time_delta": total_time_delta
+            }
 
     def predict_v2(self, image, model_name: Literal['MPViT', 'ResNet', 'FasterNet', 'EfficientNet', 'Swin', 'VanillaNet'] = 'FasterNet',
                    conf_threshold: float = None, iou_threshold: float = None) -> dict:

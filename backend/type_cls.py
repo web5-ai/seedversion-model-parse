@@ -22,17 +22,16 @@ class DetectAndEvalModel(BaseModel):
     conf_threshold: Union[float, None] = None  # 检测置信度阈值，None表示使用默认值
     iou_threshold: Union[float, None] = None   # IoU阈值，None表示使用默认值
 
-class DetectAndEvalModel2(BaseModel):
-    '''
-    用于接收检测和评估任务的数据类
-    '''
-    image_url: str  # 统一使用image_url字段名
-    model: Literal['MPViT', 'ResNet', 'FasterNet', 'EfficientNet', 'Swin', 'VanillaNet'] = 'FasterNet'  # 统一使用model字段名
-    conf_threshold: Union[float, None] = None  # 检测置信度阈值，None表示使用默认值
-    iou_threshold: Union[float, None] = None   # IoU阈值，None表示使用默认值
-
 class RipenessModel(BaseModel):
     '''
     用于接收成熟度分类任务的数据类
     '''
     image_url: str  # 统一使用image_url字段名
+
+class DetectAndEvalModel3(BaseModel):
+    '''
+    用于接收 V3 检测和评估任务的数据类（不需要 model 参数）
+    '''
+    image_url: str  # 统一使用image_url字段名
+    conf_threshold: Union[float, None] = None  # 检测置信度阈值，None表示使用默认值
+    iou_threshold: Union[float, None] = None   # IoU阈值，None表示使用默认值
