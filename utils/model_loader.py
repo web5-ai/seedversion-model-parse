@@ -10,8 +10,8 @@ from PIL import Image
 from typing import Literal
 from models import (
     MPViT, ResNet, FasterNet, EfficientNet, Swin, VanillaNet, YOLO,
-    EfficientNetB0Classifier, ResNet18Classifier, CustomCNNClassifier,
-    REGRESS_MODEL_OPTIONS, DETECT_MODEL_OPTIONS, CLASSIFIER_MODEL_OPTIONS
+    EfficientNetB0Classifier, ResNet18Classifier, CustomCNNClassifier, RipenessClassifier,
+    REGRESS_MODEL_OPTIONS, DETECT_MODEL_OPTIONS, CLASSIFIER_MODEL_OPTIONS, RIPENESS_MODEL_OPTIONS
 )
 from config import MODEL_CONFIG
 import traceback
@@ -335,6 +335,51 @@ class ModelLoader:
             logger.warning(f"加载{model_name}分类器模型失败: {str(e)}")
             tb = traceback.format_exc()
             logger.warning(f"加载分类器模型错误信息: {tb}")
+            return False
+
+    def load_ripeness_model(self, model_name: str = 'RipenessClassifier', model_path: str = None):
+        """
+        加载成熟度分类模型
+
+        Args:
+            model_name: 成熟度分类模型名称
+            model_path: 模型权重文件路径
+
+        Returns:
+            bool: 加载是否成功
+        """
+        try:
+            self.model_name = model_name
+
+            # 确定权重文件路径
+            if model_path is None:
+                # 使用默认路径
+                model_path = MODEL_CONFIG.get('ripeness_model_path', 'fruit_ripeness_model.pth')
+
+            # 确保使用绝对路径
+            if not os.path.isabs(model_path):
+                root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                model_path = os.path.join(root_dir, model_path)
+
+            logger.info(f"加载成熟度分类模型: {model_path}")
+
+            # 检查模型文件是否存在
+            if not os.path.exists(model_path):
+                raise FileNotFoundError(f"成熟度分类模型文件不存在: {model_path}")
+
+            # 创建成熟度分类器实例（内部已设置评估模式）
+            self.model = RipenessClassifier(num_classes=3, device=self.device, model_path=model_path)
+
+            param = next(self.model.model.parameters())
+            logger.info(f'成熟度分类模型加载到{param.device}设备上')
+            logger.info(f"成功加载{model_name}成熟度分类模型")
+
+            return True
+
+        except Exception as e:
+            logger.warning(f"加载{model_name}成熟度分类模型失败: {str(e)}")
+            tb = traceback.format_exc()
+            logger.warning(f"加载成熟度分类模型错误信息: {tb}")
             return False
 
     def preprocess_image(self, image:Image.Image, size=224):

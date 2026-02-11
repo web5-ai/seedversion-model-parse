@@ -13,7 +13,10 @@ MODEL_CONFIG = {
     "detect_model": "YOLO",
     "detect_model_path": "weights/3cls.onnx",
     "detect_conf_threshold": 0.9,
-    "detect_iou_threshold": 0.5
+    "detect_iou_threshold": 0.5,
+    # 成熟度分类模型配置
+    "ripeness_model": "RipenessClassifier",
+    "ripeness_model_path": "weights/fruit_ripeness_model.pth"
     # "quality_thresholds": {
     #     "油酸": 0.5,  # 油酸含量高于0.5为优质
     #     "亚油酸": 0.3  # 亚油酸含量高于0.3为营养价值高

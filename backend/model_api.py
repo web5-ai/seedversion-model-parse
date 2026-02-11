@@ -544,3 +544,79 @@ class ModelAPI:
 
         # 直接返回完整结果
         return self.detect_and_eval(image, model_name, conf_threshold, iou_threshold)
+
+
+    def predict_ripeness(self, image) -> dict:
+        """
+        预测油菜籽的成熟度（绿熟、黄熟、完熟）
+
+        Args:
+            image: 输入图像
+
+        Returns:
+            {
+                "success": bool,           # 操作是否成功
+                "ripeness_class": str,       # 预测的成熟度类别（绿熟、黄熟、完熟）
+                "confidence": float,        # 预测置信度
+                "probabilities": dict,       # 各类别的概率
+                "message": str,            # 状态消息
+                "time_delta": float        # 总耗时（秒）
+            }
+        """
+        import datetime
+
+        try:
+            # 记录开始时间
+            start_time = datetime.datetime.now()
+
+            logger.info("开始成熟度分类...")
+
+            # 加载成熟度分类模型
+            ripeness_model = MODEL_CONFIG.get("ripeness_model", "RipenessClassifier")
+            success = self.loader.load_ripeness_model(ripeness_model)
+            
+            if not success:
+                return {
+                    "success": False,
+                    "ripeness_class": "",
+                    "confidence": 0.0,
+                    "probabilities": {},
+                    "message": "成熟度分类模型加载失败",
+                    "time_delta": 0.0
+                }
+
+            # 预处理图像
+            size = 224  # 成熟度分类使用224x224
+            preprocessed_image = self.loader.preprocess_image(image, size)
+
+            # 进行成熟度分类
+            result = self.loader.classify(preprocessed_image)
+
+            # 卸载模型
+            self.loader.unload_model()
+
+            # 记录结束时间并计算耗时
+            end_time = datetime.datetime.now()
+            time_delta = (end_time - start_time).total_seconds()
+
+            logger.info(f"成熟度分类完成: 类别={result.get('predicted_class', '')}, 置信度={result.get('confidence', 0):.4f}, 耗时={time_delta:.3f}秒")
+
+            return {
+                "success": True,
+                "ripeness_class": result.get("predicted_class", ""),
+                "confidence": result.get("confidence", 0.0),
+                "probabilities": result.get("probabilities", {}),
+                "message": "成熟度分类完成",
+                "time_delta": time_delta
+            }
+
+        except Exception as e:
+            logger.error(f"成熟度分类失败: {str(e)}")
+            return {
+                "success": False,
+                "ripeness_class": "",
+                "confidence": 0.0,
+                "probabilities": {},
+                "message": f"成熟度分类失败: {str(e)}",
+                "time_delta": 0.0
+            }
