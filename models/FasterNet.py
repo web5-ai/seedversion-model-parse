@@ -18,6 +18,12 @@ class model(nn.Module):
         out = out[0]
         out[1] = out[1] * (29.1-17.4) / 100 + 17.4
         out[0] = out[0] * (50.5 - 32.5) / 100 + 32.5
+        
+        # V3接口：对水分和CHO进行归一化处理
+        if out.shape[0] >= 4:
+            out[2] = out[2] * (17 - 0.5) / 100 + 0.5
+            out[3] = out[3] * (11 - 3) / 100 + 3
+        
         return out
     
     def load_model_weight(self, weight_path):
