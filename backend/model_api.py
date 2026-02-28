@@ -790,6 +790,7 @@ class ModelAPI:
     def predict_ripeness(self, image) -> dict:
         """
         预测油菜籽的成熟度（绿熟、黄熟、完熟）
+        先判断是否为油菜籽，再预测成熟度
 
         Args:
             image: 输入图像
@@ -797,6 +798,7 @@ class ModelAPI:
         Returns:
             {
                 "success": bool,           # 操作是否成功
+                "is_rapeseed": bool,        # 是否为油菜籽
                 "ripeness_class": str,       # 预测的成熟度类别（绿熟、黄熟、完熟）
                 "confidence": float,        # 预测置信度
                 "probabilities": dict,       # 各类别的概率
@@ -819,6 +821,7 @@ class ModelAPI:
             if not success:
                 return {
                     "success": False,
+                    "is_rapeseed": False,
                     "ripeness_class": "",
                     "confidence": 0.0,
                     "probabilities": {},
@@ -826,9 +829,76 @@ class ModelAPI:
                     "time_delta": 0.0
                 }
 
-            # 预处理图像
-            size = 224  # 成熟度分类使用224x224
-            preprocessed_image = self.loader.preprocess_image(image, size)
+            # 预处理图像（与 demo2 保持一致：Resize(256) + CenterCrop(224)）
+            from torchvision import transforms
+            normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                             std=[0.229, 0.224, 0.225])
+            transform = transforms.Compose([
+                transforms.Resize(256),
+                transforms.CenterCrop(224),
+                transforms.ToTensor(),
+                normalize
+            ])
+            preprocessed_image = transform(image).unsqueeze(0).to(self.loader.device)
+
+            # === 构建特征提取器（去掉最后的分类头）===
+            feature_extractor = torch.nn.Sequential(*list(self.loader.model.model.children())[:-1])
+            feature_extractor = feature_extractor.to(self.loader.device).eval()
+
+            # === 加载油菜籽平均特征 ===
+            try:
+                root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                mean_feat_path = os.path.join(root_dir, 'rapeseed_global_mean_feature.npy')
+                mean_feat = np.load(mean_feat_path)
+            except FileNotFoundError:
+                logger.warning("未找到 'rapeseed_global_mean_feature.npy'，跳过油菜籽判断")
+                mean_feat = None
+
+            # === 提取特征并计算与油菜籽平均特征的相似度 ===
+            similarity = 0.0
+            is_rapeseed = True
+            SIMILARITY_THRESHOLD = 0.65
+
+            if mean_feat is not None:
+                with torch.no_grad():
+                    # preprocessed_image 已经是 [1, C, H, W]，不需要再 unsqueeze
+                    feat = feature_extractor(preprocessed_image)
+                    feat = torch.flatten(feat, 1).cpu().numpy()
+                
+                # 调试信息
+                logger.info(f"特征形状: {feat.shape}")
+                logger.info(f"特征前10维: {feat[0, :10]}")
+                logger.info(f"特征均值: {feat.mean():.6f}")
+                logger.info(f"特征标准差: {feat.std():.6f}")
+                
+                # 计算余弦相似度（使用numpy实现，避免sklearn依赖）
+                def cosine_similarity_np(a, b):
+                    """计算两个向量之间的余弦相似度"""
+                    norm_a = np.linalg.norm(a)
+                    norm_b = np.linalg.norm(b)
+                    if norm_a == 0 or norm_b == 0:
+                        return 0.0
+                    return np.dot(a, b) / (norm_a * norm_b)
+                
+                similarity = cosine_similarity_np(feat[0], mean_feat)
+                logger.info(f"计算得到的相似度: {similarity:.6f}")
+
+                # 判断是否为油菜籽
+                if similarity < SIMILARITY_THRESHOLD:
+                    self.loader.unload_model()
+                    end_time = datetime.datetime.now()
+                    time_delta = (end_time - start_time).total_seconds()
+                    
+                    logger.info(f"输入不是油菜籽（相似度={similarity:.3f} < {SIMILARITY_THRESHOLD}）")
+                    return {
+                        "success": True,
+                        "is_rapeseed": False,
+                        "ripeness_class": "",
+                        "confidence": 0.0,
+                        "probabilities": {},
+                        "message": f"输入不是油菜籽（相似度={similarity:.3f} < {SIMILARITY_THRESHOLD}）",
+                        "time_delta": time_delta
+                    }
 
             # 进行成熟度分类
             result = self.loader.classify(preprocessed_image)
@@ -840,10 +910,11 @@ class ModelAPI:
             end_time = datetime.datetime.now()
             time_delta = (end_time - start_time).total_seconds()
 
-            logger.info(f"成熟度分类完成: 类别={result.get('predicted_class', '')}, 置信度={result.get('confidence', 0):.4f}, 耗时={time_delta:.3f}秒")
+            logger.info(f"成熟度分类完成: 类别={result.get('predicted_class', '')}, 置信度={result.get('confidence', 0):.4f}, 相似度={similarity:.3f}, 耗时={time_delta:.3f}秒")
 
             return {
                 "success": True,
+                "is_rapeseed": True,
                 "ripeness_class": result.get("predicted_class", ""),
                 "confidence": result.get("confidence", 0.0),
                 "probabilities": result.get("probabilities", {}),
@@ -855,6 +926,7 @@ class ModelAPI:
             logger.error(f"成熟度分类失败: {str(e)}")
             return {
                 "success": False,
+                "is_rapeseed": False,
                 "ripeness_class": "",
                 "confidence": 0.0,
                 "probabilities": {},

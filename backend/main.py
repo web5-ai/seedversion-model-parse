@@ -285,6 +285,7 @@ async def predict_v2(task_info: DetectAndEvalModel) -> dict:
 async def predict_ripeness(task_info: RipenessModel) -> dict:
     '''
     成熟度分类接口：预测油菜籽的成熟度（绿熟、黄熟、完熟）
+    先判断是否为油菜籽，再预测成熟度
 
     Args:
         image_url: 图像文件的URL或路径
@@ -292,6 +293,7 @@ async def predict_ripeness(task_info: RipenessModel) -> dict:
     Returns:
         {
             "success": bool,           # 操作是否成功
+            "is_rapeseed": bool,        # 是否为油菜籽
             "ripeness_class": str,       # 预测的成熟度类别（绿熟、黄熟、完熟）
             "confidence": float,        # 预测置信度
             "probabilities": dict,       # 各类别的概率
@@ -315,6 +317,7 @@ async def predict_ripeness(task_info: RipenessModel) -> dict:
         logger.error(f"图像获取失败: {str(e)}")
         return {
             "success": False,
+            "is_rapeseed": False,
             "ripeness_class": "",
             "confidence": 0.0,
             "probabilities": {},
@@ -329,7 +332,10 @@ async def predict_ripeness(task_info: RipenessModel) -> dict:
 
         # 记录结果
         if result.get("success"):
-            logger.info(f"成熟度分类完成: 类别={result.get('ripeness_class', '')}, 置信度={result.get('confidence', 0):.4f}, 耗时={result.get('time_delta', 0):.3f}秒")
+            if result.get("is_rapeseed"):
+                logger.info(f"成熟度分类完成: 类别={result.get('ripeness_class', '')}, 置信度={result.get('confidence', 0):.4f}, 耗时={result.get('time_delta', 0):.3f}秒")
+            else:
+                logger.info(f"不是油菜籽: {result.get('message', '')}")
         else:
             logger.error(f"成熟度分类失败: {result.get('message', '未知错误')}")
 
@@ -339,6 +345,7 @@ async def predict_ripeness(task_info: RipenessModel) -> dict:
         logger.error(f"成熟度分类过程失败: {str(e)}")
         return {
             "success": False,
+            "is_rapeseed": False,
             "ripeness_class": "",
             "confidence": 0.0,
             "probabilities": {},
