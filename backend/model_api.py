@@ -989,7 +989,7 @@ class ModelAPI:
         NUM_CLASSES = 3
         DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         KNN_K = 5
-        KNN_THRESHOLD = 0.8  # KNN判断阈值
+        KNN_THRESHOLD = 0.7  # KNN判断阈值
         classes = ["绿熟", "黄熟", "完熟"]
 
         try:
