@@ -18,7 +18,7 @@ from utils.model_loader import ModelLoader
 from config import MODEL_CONFIG, SYSTEM_CONFIG
 from utils.environment import check_dependencies, setup_environment
 from utils.logging_config import get_logger
-from tools import get_detection_counts
+from backend.tools import get_detection_counts
 # 获取日志记录器
 logger = get_logger("ModelAPI")
 
@@ -931,5 +931,211 @@ class ModelAPI:
                 "confidence": 0.0,
                 "probabilities": {},
                 "message": f"成熟度分类失败: {str(e)}",
+                "time_delta": 0.0
+            }
+
+    def predict_ripeness_v3(self, image) -> dict:
+        """
+        V3版本成熟度分类，参考demo3实现
+        使用KNN（K=5）判断是否为油菜籽，使用ResNet18进行成熟度分类
+
+        Args:
+            image: 输入图像（PIL Image）
+
+        Returns:
+            {
+                "success": bool,           # 操作是否成功
+                "is_rapeseed": bool,       # 是否为油菜籽
+                "ripeness_class": str,     # 成熟度类别（未熟、半熟、全熟）
+                "confidence": float,       # 预测置信度
+                "similarity": float,       # KNN平均相似度
+                "probabilities": dict,     # 各类别的概率
+                "message": str,            # 状态消息
+                "time_delta": float        # 总耗时（秒）
+            }
+        """
+        import datetime
+        import numpy as np
+        import torch
+        import torch.nn as nn
+        from torchvision import transforms, models
+        import os
+
+        # 自定义余弦相似度计算函数，避免依赖 scikit-learn
+        def cosine_similarity(a, b):
+            """计算两个向量之间的余弦相似度"""
+            a = np.array(a)
+            b = np.array(b)
+            
+            # 确保输入是二维数组
+            if a.ndim == 1:
+                a = a.reshape(1, -1)
+            if b.ndim == 1:
+                b = b.reshape(1, -1)
+            
+            # 计算点积
+            dot_product = np.dot(a, b.T)
+            
+            # 计算范数
+            norm_a = np.linalg.norm(a, axis=1, keepdims=True)
+            norm_b = np.linalg.norm(b, axis=1, keepdims=True)
+            
+            # 计算余弦相似度
+            similarity = dot_product / (norm_a * norm_b.T + 1e-10)  # 添加小值避免除零
+            
+            return similarity
+
+        # ==================== 配置 ====================
+        NUM_CLASSES = 3
+        DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        KNN_K = 5
+        KNN_THRESHOLD = 0.8  # KNN判断阈值
+        classes = ["绿熟", "黄熟", "完熟"]
+
+        try:
+            # 记录开始时间
+            start_time = datetime.datetime.now()
+            logger.info("开始V3成熟度分类（参考demo3）...")
+
+            # ==================== 加载模型 ====================
+            model = models.resnet18(pretrained=False)
+            num_ftrs = model.fc.in_features
+            model.fc = nn.Sequential(
+                nn.Dropout(0.5),
+                nn.Linear(num_ftrs, 256),
+                nn.ReLU(),
+                nn.Dropout(0.3),
+                nn.Linear(256, NUM_CLASSES)
+            )
+
+            # 获取模型路径
+            root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            model_path = os.path.join(root_dir, 'fruit_ripeness_model.pth')
+
+            if not os.path.exists(model_path):
+                return {
+                    "success": False,
+                    "is_rapeseed": False,
+                    "ripeness_class": "",
+                    "confidence": 0.0,
+                    "similarity": 0.0,
+                    "probabilities": {},
+                    "message": f"模型文件不存在: {model_path}",
+                    "time_delta": 0.0
+                }
+
+            model.load_state_dict(torch.load(model_path, map_location=DEVICE))
+            model = model.to(DEVICE).eval()
+
+            # ==================== 特征提取器 ====================
+            feature_extractor = torch.nn.Sequential(*list(model.children())[:-1])  # 移除 fc 层
+            feature_extractor = feature_extractor.to(DEVICE).eval()
+
+            # ==================== 加载特征库 ====================
+            features_path = os.path.join(root_dir, 'all_rapeseed_features.npy')
+            try:
+                all_rapeseed_features = np.load(features_path)  # shape: (N, 512)
+                if all_rapeseed_features.ndim != 2 or all_rapeseed_features.shape[1] != 512:
+                    return {
+                        "success": False,
+                        "is_rapeseed": False,
+                        "ripeness_class": "",
+                        "confidence": 0.0,
+                        "similarity": 0.0,
+                        "probabilities": {},
+                        "message": f"特征库格式错误: {features_path}",
+                        "time_delta": 0.0
+                    }
+                logger.info(f"成功加载油菜籽特征库: {all_rapeseed_features.shape[0]} 个样本")
+            except FileNotFoundError:
+                return {
+                    "success": False,
+                    "is_rapeseed": False,
+                    "ripeness_class": "",
+                    "confidence": 0.0,
+                    "similarity": 0.0,
+                    "probabilities": {},
+                    "message": f"特征库文件不存在: {features_path}",
+                    "time_delta": 0.0
+                }
+
+            # ==================== 图像预处理 ====================
+            normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                             std=[0.229, 0.224, 0.225])
+            transform = transforms.Compose([
+                transforms.Resize(256),
+                transforms.CenterCrop(224),
+                transforms.ToTensor(),
+                normalize
+            ])
+
+            img_tensor = transform(image).unsqueeze(0).to(DEVICE)  # [1, 3, 224, 224]
+
+            # ==================== KNN判断是否为油菜籽 ====================
+            with torch.no_grad():
+                feat = feature_extractor(img_tensor)          # [1, 512, 1, 1]
+                feat = torch.flatten(feat, 1).cpu().numpy()   # [1, 512]
+
+            # 计算余弦相似度
+            sims = cosine_similarity(feat, all_rapeseed_features)[0]  # shape: (N,)
+            top_k_sims = np.sort(sims)[-KNN_K:]                    # 最大的 k 个相似度
+            avg_top_k_sim = np.mean(top_k_sims)
+
+            logger.info(f"KNN平均相似度: {avg_top_k_sim:.3f}, 阈值: {KNN_THRESHOLD}")
+
+            # 判断是否为油菜籽
+            if avg_top_k_sim < KNN_THRESHOLD:
+                end_time = datetime.datetime.now()
+                time_delta = (end_time - start_time).total_seconds()
+
+                logger.info(f"输入不是油菜籽（Top-{KNN_K} 平均相似度 = {avg_top_k_sim:.3f} < {KNN_THRESHOLD}）")
+                return {
+                    "success": True,
+                    "is_rapeseed": False,
+                    "ripeness_class": "",
+                    "confidence": 0.0,
+                    "similarity": float(avg_top_k_sim),
+                    "probabilities": {},
+                    "message": f"输入不是油菜籽（Top-{KNN_K} 平均相似度 = {avg_top_k_sim:.3f} < {KNN_THRESHOLD}）",
+                    "time_delta": time_delta
+                }
+
+            # ==================== 是油菜籽，预测成熟度 ====================
+            with torch.no_grad():
+                outputs = model(img_tensor)
+                probs = torch.softmax(outputs, dim=1).cpu().numpy()[0]
+                pred_idx = int(np.argmax(probs))
+
+            # 构建概率字典
+            probabilities = {classes[i]: float(probs[i]) for i in range(len(classes))}
+
+            # 记录结束时间
+            end_time = datetime.datetime.now()
+            time_delta = (end_time - start_time).total_seconds()
+
+            logger.info(f"V3成熟度分类完成: 类别={classes[pred_idx]}, "
+                       f"置信度={probs[pred_idx]:.4f}, 相似度={avg_top_k_sim:.3f}, 耗时={time_delta:.3f}秒")
+
+            return {
+                "success": True,
+                "is_rapeseed": True,
+                "ripeness_class": classes[pred_idx],
+                "confidence": float(probs[pred_idx]),
+                "similarity": float(avg_top_k_sim),
+                "probabilities": probabilities,
+                "message": "成熟度分类完成",
+                "time_delta": time_delta
+            }
+
+        except Exception as e:
+            logger.error(f"V3成熟度分类失败: {str(e)}")
+            return {
+                "success": False,
+                "is_rapeseed": False,
+                "ripeness_class": "",
+                "confidence": 0.0,
+                "similarity": 0.0,
+                "probabilities": {},
+                "message": f"V3成熟度分类失败: {str(e)}",
                 "time_delta": 0.0
             }

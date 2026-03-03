@@ -356,7 +356,7 @@ async def predict_ripeness(task_info: RipenessModel) -> dict:
 @app.post("/v3/predict")
 async def predict_v3(task_info: DetectAndEvalModel3) -> dict:
     '''
-    V3预测接口
+    V3预测接口 - 参考demo3实现，使用KNN判断是否为油菜籽并进行成熟度分类
 
     Args:
         image_url: 图像文件的URL或路径
@@ -366,18 +366,16 @@ async def predict_v3(task_info: DetectAndEvalModel3) -> dict:
     Returns:
         {
             "success": bool,           # 整体操作是否成功
-            "object_classes_counts": {},          # 检测到的种子类别统计
+            "is_rapeseed": bool,       # 是否为油菜籽（KNN判断）
+            "ripeness_class": str,     # 成熟度类别（绿熟、黄熟、完熟）
+            "confidence": float,       # 预测置信度
+            "similarity": float,       # KNN平均相似度
+            "probabilities": dict,     # 各类别的概率
             "message": str,            # 状态消息
-            "objects": list,           # 检测到的对象列表
-            "protein": float,          # 蛋白质含量
-            "oil": float,              # 油脂含量
-            "water": float             # 水分含量
-            "cho": float               # 叶绿素含量
             "time_delta": float        # 总耗时（秒）
         }
     '''
     logger.info(f"收到V3预测请求: 图像源={task_info.image_url}")
-    logger.info(f"检测参数: conf_threshold={task_info.conf_threshold}, iou_threshold={task_info.iou_threshold}")
 
     # 设置随机种子
     model_api.set_seed(SYSTEM_CONFIG['default_seed'])
@@ -393,45 +391,45 @@ async def predict_v3(task_info: DetectAndEvalModel3) -> dict:
         logger.error(f"图像获取失败: {str(e)}")
         return {
             "success": False,
-            "object_classes_counts": {},
+            "is_rapeseed": False,
+            "ripeness_class": "",
+            "confidence": 0.0,
+            "similarity": 0.0,
+            "probabilities": {},
             "message": f"图像获取失败: {str(e)}",
-            "objects": [],
-            "protein": 0.0,
-            "oil": 0.0,
-            "water": 0.0,
-            "cho": 0.0,
             "time_delta": 0.0
         }
 
-    # 执行检测和评估
+    # 执行成熟度分类（参考demo3）
     try:
-        logger.info("开始执行V3检测和评估流程")
-        result = model_api.detect_and_eval_v3(
-            img,
-            task_info.conf_threshold,
-            task_info.iou_threshold
-        )
+        logger.info("开始执行V3成熟度分类流程（参考demo3）")
+        result = model_api.predict_ripeness_v3(img)
 
         # 记录结果
         if result.get("success"):
-            if result.get("object_classes_counts") != {}:
-                logger.info(f"V3检测和评估完成: 检测到 {len(result.get('objects', []))} 个对象，蛋白质: {result.get('protein', 0):.2f}%, 油脂: {result.get('oil', 0):.2f}%, 耗时: {result.get('time_delta', 0):.3f}秒")
+            if result.get("is_rapeseed"):
+                logger.info(f"V3成熟度分类完成: 类别={result.get('ripeness_class', '')}, "
+                          f"置信度={result.get('confidence', 0):.4f}, "
+                          f"相似度={result.get('similarity', 0):.3f}, "
+                          f"耗时={result.get('time_delta', 0):.3f}秒")
             else:
-                logger.info(f"V3检测完成但未发现种子对象，耗时: {result.get('time_delta', 0):.3f}秒")
+                logger.info(f"V3判断: 输入不是油菜籽，相似度={result.get('similarity', 0):.3f}, "
+                          f"耗时={result.get('time_delta', 0):.3f}秒")
         else:
-            logger.error(f"V3检测和评估失败: {result.get('message', '未知错误')}")
+            logger.error(f"V3成熟度分类失败: {result.get('message', '未知错误')}")
 
         return result
 
     except Exception as e:
-        logger.error(f"V3检测和评估过程失败: {str(e)}")
+        logger.error(f"V3成熟度分类过程失败: {str(e)}")
         return {
             "success": False,
-            "object_classes_counts": {},
+            "is_rapeseed": False,
+            "ripeness_class": "",
+            "confidence": 0.0,
+            "similarity": 0.0,
+            "probabilities": {},
             "message": f"处理失败: {str(e)}",
-            "objects": [],
-            "protein": 0.0,
-            "oil": 0.0,
             "time_delta": 0.0
         }
 
