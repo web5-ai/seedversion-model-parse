@@ -281,8 +281,8 @@ async def predict_v2(task_info: DetectAndEvalModel) -> dict:
             "time_delta": 0.0
         }
 
-@app.post("/ripeness/predict")
-async def predict_ripeness(task_info: RipenessModel) -> dict:
+@app.post("/ripeness/predict_1")
+async def predict_ripeness_1(task_info: RipenessModel) -> dict:
     '''
     成熟度分类接口：预测油菜籽的成熟度（绿熟、黄熟、完熟）
     先判断是否为油菜籽，再预测成熟度
@@ -353,8 +353,8 @@ async def predict_ripeness(task_info: RipenessModel) -> dict:
             "time_delta": 0.0
         }
 
-@app.post("/v3/predict")
-async def predict_v3(task_info: DetectAndEvalModel3) -> dict:
+@app.post("/ripeness/predict")
+async def predict_ripeness(task_info: DetectAndEvalModel3) -> dict:
     '''
     V3预测接口 - 参考demo3实现，使用KNN判断是否为油菜籽并进行成熟度分类
 
@@ -432,6 +432,90 @@ async def predict_v3(task_info: DetectAndEvalModel3) -> dict:
             "message": f"处理失败: {str(e)}",
             "time_delta": 0.0
         }
+
+@app.post("/v3/predict")
+async def predict_v3(task_info: DetectAndEvalModel3) -> dict:
+    '''
+    V3预测接口
+
+    Args:
+        image_url: 图像文件的URL或路径
+        conf_threshold: 检测置信度阈值，None表示使用配置默认值
+        iou_threshold: IoU阈值，None表示使用配置默认值
+
+    Returns:
+        {
+            "success": bool,           # 整体操作是否成功
+            "object_classes_counts": {},          # 检测到的种子类别统计
+            "message": str,            # 状态消息
+            "objects": list,           # 检测到的对象列表
+            "protein": float,          # 蛋白质含量
+            "oil": float,              # 油脂含量
+            "water": float             # 水分含量
+            "cho": float               # 叶绿素含量
+            "time_delta": float        # 总耗时（秒）
+        }
+    '''
+    logger.info(f"收到V3预测请求: 图像源={task_info.image_url}")
+    logger.info(f"检测参数: conf_threshold={task_info.conf_threshold}, iou_threshold={task_info.iou_threshold}")
+
+    # 设置随机种子
+    model_api.set_seed(SYSTEM_CONFIG['default_seed'])
+    seed_info = model_api.get_seed_info()
+    logger.info(f"系统环境中的随机因素: {seed_info}")
+
+    # 读取图像文件
+    try:
+        logger.info("开始下载/读取图像")
+        img, save_path, hash256 = await asyncio.to_thread(get_img, task_info.image_url, False)
+        logger.info("图像获取成功，hash256: " + hash256)
+    except Exception as e:
+        logger.error(f"图像获取失败: {str(e)}")
+        return {
+            "success": False,
+            "object_classes_counts": {},
+            "message": f"图像获取失败: {str(e)}",
+            "objects": [],
+            "protein": 0.0,
+            "oil": 0.0,
+            "water": 0.0,
+            "cho": 0.0,
+            "time_delta": 0.0
+        }
+
+    # 执行检测和评估
+    try:
+        logger.info("开始执行V3检测和评估流程")
+        result = model_api.detect_and_eval_v3(
+            img,
+            task_info.conf_threshold,
+            task_info.iou_threshold
+        )
+
+        # 记录结果
+        if result.get("success"):
+            if result.get("object_classes_counts") != {}:
+                logger.info(f"V3检测和评估完成: 检测到 {len(result.get('objects', []))} 个对象，蛋白质: {result.get('protein', 0):.2f}%, 油脂: {result.get('oil', 0):.2f}%, 耗时: {result.get('time_delta', 0):.3f}秒")
+            else:
+                logger.info(f"V3检测完成但未发现种子对象，耗时: {result.get('time_delta', 0):.3f}秒")
+        else:
+            logger.error(f"V3检测和评估失败: {result.get('message', '未知错误')}")
+
+        return result
+
+    except Exception as e:
+        logger.error(f"V3检测和评估过程失败: {str(e)}")
+        return {
+            "success": False,
+            "object_classes_counts": {},
+            "message": f"处理失败: {str(e)}",
+            "objects": [],
+            "protein": 0.0,
+            "oil": 0.0,
+            "time_delta": 0.0
+        }
+
+    
 
 
 # @app.get("/history")

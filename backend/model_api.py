@@ -848,7 +848,7 @@ class ModelAPI:
             # === 加载油菜籽平均特征 ===
             try:
                 root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                mean_feat_path = os.path.join(root_dir, 'rapeseed_global_mean_feature.npy')
+                mean_feat_path = os.path.join(root_dir, 'weights/rapeseed_global_mean_feature.npy')
                 mean_feat = np.load(mean_feat_path)
             except FileNotFoundError:
                 logger.warning("未找到 'rapeseed_global_mean_feature.npy'，跳过油菜籽判断")
@@ -1010,7 +1010,7 @@ class ModelAPI:
 
             # 获取模型路径
             root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            model_path = os.path.join(root_dir, 'fruit_ripeness_model.pth')
+            model_path = os.path.join(root_dir, 'weights/fruit_ripeness_model.pth')
 
             if not os.path.exists(model_path):
                 return {
@@ -1032,7 +1032,7 @@ class ModelAPI:
             feature_extractor = feature_extractor.to(DEVICE).eval()
 
             # ==================== 加载特征库 ====================
-            features_path = os.path.join(root_dir, 'all_rapeseed_features.npy')
+            features_path = os.path.join(root_dir, 'weights/all_rapeseed_features.npy')
             try:
                 all_rapeseed_features = np.load(features_path)  # shape: (N, 512)
                 if all_rapeseed_features.ndim != 2 or all_rapeseed_features.shape[1] != 512:
