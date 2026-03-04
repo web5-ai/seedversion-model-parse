@@ -1084,21 +1084,21 @@ class ModelAPI:
             logger.info(f"KNN平均相似度: {avg_top_k_sim:.3f}, 阈值: {KNN_THRESHOLD}")
 
             # 判断是否为油菜籽
-            if avg_top_k_sim < KNN_THRESHOLD:
-                end_time = datetime.datetime.now()
-                time_delta = (end_time - start_time).total_seconds()
+            # if avg_top_k_sim < KNN_THRESHOLD:
+            #     end_time = datetime.datetime.now()
+            #     time_delta = (end_time - start_time).total_seconds()
 
-                logger.info(f"输入不是油菜籽（Top-{KNN_K} 平均相似度 = {avg_top_k_sim:.3f} < {KNN_THRESHOLD}）")
-                return {
-                    "success": True,
-                    "is_rapeseed": False,
-                    "ripeness_class": "",
-                    "confidence": 0.0,
-                    "similarity": float(avg_top_k_sim),
-                    "probabilities": {},
-                    "message": f"输入不是油菜籽（Top-{KNN_K} 平均相似度 = {avg_top_k_sim:.3f} < {KNN_THRESHOLD}）",
-                    "time_delta": time_delta
-                }
+            #     logger.info(f"输入不是油菜籽（Top-{KNN_K} 平均相似度 = {avg_top_k_sim:.3f} < {KNN_THRESHOLD}）")
+            #     return {
+            #         "success": True,
+            #         "is_rapeseed": False,
+            #         "ripeness_class": "",
+            #         "confidence": 0.0,
+            #         "similarity": float(avg_top_k_sim),
+            #         "probabilities": {},
+            #         "message": f"输入不是油菜籽（Top-{KNN_K} 平均相似度 = {avg_top_k_sim:.3f} < {KNN_THRESHOLD}）",
+            #         "time_delta": time_delta
+            #     }
 
             # ==================== 是油菜籽，预测成熟度 ====================
             with torch.no_grad():
