@@ -35,3 +35,13 @@ class DetectAndEvalModel3(BaseModel):
     image_url: str  # 统一使用image_url字段名
     conf_threshold: Union[float, None] = None  # 检测置信度阈值，None表示使用默认值
     iou_threshold: Union[float, None] = None   # IoU阈值，None表示使用默认值
+
+# AI-GENERATED-START
+class RapeseedPadimModel(BaseModel):
+    '''
+    用于接收 PaDiM 菜籽判别任务的数据类
+    '''
+    image_url: str
+    threshold_buffer_a: Union[int, None] = None
+    threshold_buffer_b: Union[int, None] = None
+# AI-GENERATED-END

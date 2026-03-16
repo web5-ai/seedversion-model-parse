@@ -35,6 +35,9 @@ if not env_result.get("success", False):
 import asyncio
 from fastapi import FastAPI
 from type_cls import TaskModel, DetectAndEvalModel, DetectAndEvalModel3, RipenessModel
+# AI-GENERATED-START
+from type_cls import RapeseedPadimModel
+# AI-GENERATED-END
 from tools import *
 from model_api import ModelAPI
 import datetime
@@ -50,6 +53,75 @@ model_api = ModelAPI('cuda')
 def root():
     logger.info("访问根路径")
     return {"油菜籽fastapi后台"}
+
+
+# AI-GENERATED-START
+@app.post("/rapeseed/predict")
+async def predict_rapeseed(task_info: RapeseedPadimModel) -> dict:
+    '''
+    PaDiM 菜籽判别接口。
+
+    Returns:
+        {
+            "success": bool,
+            "is_rapeseed": bool | None,
+            "label": str,  # rapeseed / non_rapeseed / uncertain / error
+            "score": float,
+            "threshold": float,
+            "is_normal": int,  # 1: 菜籽, -1: 非菜籽, 0: 不确定
+            "message": str,
+            "time_delta": float
+        }
+    '''
+    logger.info(f"收到 PaDiM 菜籽判别请求: 图像源={task_info.image_url}")
+
+    model_api.set_seed(SYSTEM_CONFIG['default_seed'])
+    seed_info = model_api.get_seed_info()
+    logger.info(f"系统环境中的随机因素: {seed_info}")
+
+    try:
+        logger.info("开始下载/读取图像")
+        img, save_path, hash256 = await asyncio.to_thread(get_img, task_info.image_url, False)
+        logger.info("图像获取成功，hash256: " + hash256)
+    except Exception as e:
+        logger.error(f"图像获取失败: {str(e)}")
+        return {
+            "success": False,
+            "is_rapeseed": None,
+            "label": "error",
+            "score": 0.0,
+            "threshold": 0.0,
+            "is_normal": 0,
+            "message": f"图像获取失败: {str(e)}",
+            "time_delta": 0.0,
+        }
+
+    try:
+        result = await asyncio.to_thread(
+            model_api.predict_rapeseed_with_padim,
+            img,
+            task_info.threshold_buffer_a,
+            task_info.threshold_buffer_b,
+        )
+        logger.info(
+            f"PaDiM 菜籽判别完成: label={result.get('label')}, "
+            f"score={result.get('score', 0.0):.4f}, "
+            f"time_delta={result.get('time_delta', 0.0):.3f}秒"
+        )
+        return result
+    except Exception as e:
+        logger.error(f"PaDiM 菜籽判别过程失败: {str(e)}")
+        return {
+            "success": False,
+            "is_rapeseed": None,
+            "label": "error",
+            "score": 0.0,
+            "threshold": 0.0,
+            "is_normal": 0,
+            "message": f"处理失败: {str(e)}",
+            "time_delta": 0.0,
+        }
+# AI-GENERATED-END
 
 # @app.get("/image")
 # def get_image(img_hash:str):

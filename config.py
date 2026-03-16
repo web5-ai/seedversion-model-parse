@@ -16,7 +16,13 @@ MODEL_CONFIG = {
     "detect_iou_threshold": 0.5,
     # 成熟度分类模型配置
     "ripeness_model": "RipenessClassifier",
-    "ripeness_model_path": "weights/fruit_ripeness_model.pth"
+    "ripeness_model_path": "weights/fruit_ripeness_model.pth",
+    # AI-GENERATED-START
+    # PaDiM 菜籽判别模型配置
+    "padim_model_path": "weights/padim_oilseed_model.pth",
+    "padim_threshold_buffer_a": 500,
+    "padim_threshold_buffer_b": 3000,
+    # AI-GENERATED-END
     # "quality_thresholds": {
     #     "油酸": 0.5,  # 油酸含量高于0.5为优质
     #     "亚油酸": 0.3  # 亚油酸含量高于0.3为营养价值高

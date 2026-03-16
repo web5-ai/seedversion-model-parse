@@ -27,7 +27,7 @@
 ### 安装依赖
 
 ```bash
-pip install -r requirements.txt
+uv sync
 ```
 
 ### 测试模型
@@ -71,8 +71,7 @@ python -c "from test_classifiers import test_classifier_model; test_classifier_m
 ### 启动后端服务
 
 ```bash
-cd backend
-python main.py
+uv run python backend/main.py
 ```
 
 或使用批处理脚本：
@@ -80,6 +79,15 @@ python main.py
 ```bash
 backend\start_service.bat
 ```
+
+### 新增接口
+
+- `POST /rapeseed/predict`: 使用 `PaDiM` 判断输入图像是否为菜籽
+- 详细文档见 [docs/API_Documentation.md](/Users/wanglu/Work/remote/seedversion-model-parse/docs/API_Documentation.md)
+
+### Linux 部署
+
+- 新机器部署说明见 [docs/linux_deploy.md](/Users/wanglu/Work/remote/seedversion-model-parse/docs/linux_deploy.md)
 
 ## 项目结构
 

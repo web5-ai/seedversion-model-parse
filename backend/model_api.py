@@ -19,6 +19,9 @@ from config import MODEL_CONFIG, SYSTEM_CONFIG
 from utils.environment import check_dependencies, setup_environment
 from utils.logging_config import get_logger
 from backend.tools import get_detection_counts
+# AI-GENERATED-START
+from utils.padim_inference import PaDiMInference
+# AI-GENERATED-END
 # 获取日志记录器
 logger = get_logger("ModelAPI")
 
@@ -73,11 +76,38 @@ class ModelAPI:
         # 创建V3专用的加载器实例
         self.v3_loader = ModelLoader(device=MODEL_CONFIG['device'], v3_mode=True) # 初始化V3加载器
 
+        # AI-GENERATED-START
+        self.padim_model = None
+        self.padim_model_path = None
+        self.padim_device = device or MODEL_CONFIG['device']
+        # AI-GENERATED-END
+
         # 简化完成日志
         if _model_api_instance_count == 1:
             self.logger.info("ModelAPI initialization complete")
         else:
             self.logger.debug(f"ModelAPI instance #{_model_api_instance_count} ready")
+
+    # AI-GENERATED-START
+    def _get_padim_device(self) -> str:
+        configured_device = self.padim_device or MODEL_CONFIG.get('device', 'cpu')
+        if configured_device == 'cuda' and not torch.cuda.is_available():
+            return 'cpu'
+        return configured_device
+
+    def _get_padim_model(self) -> PaDiMInference:
+        root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        model_path = os.path.join(root_dir, MODEL_CONFIG['padim_model_path'])
+        device = self._get_padim_device()
+
+        if self.padim_model is None or self.padim_model_path != model_path:
+            logger.info(f"加载 PaDiM 菜籽判别模型: {model_path}, device={device}")
+            self.padim_model = PaDiMInference(model_path=model_path, device=device)
+            self.padim_model_path = model_path
+            self.padim_device = device
+
+        return self.padim_model
+    # AI-GENERATED-END
     def generate_text_evals(self,output, components)->dict:
         """
         生成文本报告
@@ -933,6 +963,82 @@ class ModelAPI:
                 "message": f"成熟度分类失败: {str(e)}",
                 "time_delta": 0.0
             }
+
+    # AI-GENERATED-START
+    def predict_rapeseed_with_padim(
+        self,
+        image,
+        threshold_buffer_a: int | None = None,
+        threshold_buffer_b: int | None = None,
+    ) -> dict:
+        """
+        使用 PaDiM 模型判断输入是否为菜籽。
+        """
+        import datetime
+
+        try:
+            start_time = datetime.datetime.now()
+            model = self._get_padim_model()
+            buffer_a = (
+                threshold_buffer_a
+                if threshold_buffer_a is not None
+                else MODEL_CONFIG.get("padim_threshold_buffer_a", 500)
+            )
+            buffer_b = (
+                threshold_buffer_b
+                if threshold_buffer_b is not None
+                else MODEL_CONFIG.get("padim_threshold_buffer_b", 3000)
+            )
+
+            logger.info(
+                f"开始执行 PaDiM 菜籽判别: threshold_buffer_a={buffer_a}, threshold_buffer_b={buffer_b}"
+            )
+
+            result = model.infer(
+                image_input=image,
+                threshold_buffer_a=buffer_a,
+                threshold_buffer_b=buffer_b,
+            )
+
+            end_time = datetime.datetime.now()
+            time_delta = (end_time - start_time).total_seconds()
+
+            if result["label"] == "rapeseed":
+                message = "判定为菜籽"
+            elif result["label"] == "non_rapeseed":
+                message = "判定为非菜籽"
+            else:
+                message = "结果不确定，建议走二次判断"
+
+            return {
+                "success": True,
+                "is_rapeseed": result["is_rapeseed"],
+                "label": result["label"],
+                "score": result["score"],
+                "threshold": result["threshold"],
+                "is_normal": result["is_normal"],
+                "threshold_buffer_a": result["threshold_buffer_a"],
+                "threshold_buffer_b": result["threshold_buffer_b"],
+                "device": self._get_padim_device(),
+                "message": message,
+                "time_delta": time_delta,
+            }
+        except Exception as e:
+            logger.error(f"PaDiM 菜籽判别失败: {str(e)}")
+            return {
+                "success": False,
+                "is_rapeseed": None,
+                "label": "error",
+                "score": 0.0,
+                "threshold": 0.0,
+                "is_normal": 0,
+                "threshold_buffer_a": threshold_buffer_a,
+                "threshold_buffer_b": threshold_buffer_b,
+                "device": self._get_padim_device(),
+                "message": f"PaDiM 菜籽判别失败: {str(e)}",
+                "time_delta": 0.0,
+            }
+    # AI-GENERATED-END
 
     def predict_ripeness_v3(self, image) -> dict:
         """

@@ -13,6 +13,79 @@
 | **V1** | `/v1/predict` | 简化结果，核心数据     | 简单应用，快速集成 |
 | **V2** | `/v2/predict` | 详细结果，包含检测信息 | 调试监控，完整分析 |
 
+## 🆕 菜籽判别接口
+
+### 接口信息
+
+- **接口**: `POST /rapeseed/predict`
+- **功能**: 使用 `PaDiM` 模型判断输入图像是否为菜籽
+- **适用场景**: 在成分预测、成熟度预测之前做前置筛选
+
+### 请求参数
+
+```json
+{
+  "image_url": "string",
+  "threshold_buffer_a": 500,
+  "threshold_buffer_b": 3000
+}
+```
+
+| 参数名 | 类型 | 必填 | 默认值 | 说明 |
+| ------ | ---- | ---- | ------ | ---- |
+| `image_url` | string | ✅ | - | 图像 URL 或本地路径 |
+| `threshold_buffer_a` | int | ❌ | `500` | 菜籽判定缓冲区，分数低于 `threshold - a` 判为菜籽 |
+| `threshold_buffer_b` | int | ❌ | `3000` | 非菜籽判定缓冲区，分数高于 `threshold + b` 判为非菜籽 |
+
+### 响应格式
+
+```json
+{
+  "success": true,
+  "is_rapeseed": false,
+  "label": "non_rapeseed",
+  "score": 10628.766195188298,
+  "threshold": 2118.7900265279322,
+  "is_normal": -1,
+  "threshold_buffer_a": 500,
+  "threshold_buffer_b": 3000,
+  "device": "cpu",
+  "message": "判定为非菜籽",
+  "time_delta": 0.702331
+}
+```
+
+### 响应字段说明
+
+| 字段名 | 类型 | 说明 |
+| ------ | ---- | ---- |
+| `success` | bool | 是否执行成功 |
+| `is_rapeseed` | bool / null | `true` 菜籽，`false` 非菜籽，`null` 不确定或失败 |
+| `label` | string | `rapeseed` / `non_rapeseed` / `uncertain` / `error` |
+| `score` | float | PaDiM 异常分数 |
+| `threshold` | float | 模型内置阈值 |
+| `is_normal` | int | `1` 菜籽，`-1` 非菜籽，`0` 不确定 |
+| `message` | string | 结果说明 |
+| `time_delta` | float | 推理耗时（秒） |
+
+### cURL 示例
+
+```bash
+curl -X POST "http://localhost:8123/rapeseed/predict" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "image_url": "https://example.com/demo.jpg",
+    "threshold_buffer_a": 500,
+    "threshold_buffer_b": 3000
+  }'
+```
+
+### 判定规则
+
+- `score < threshold - threshold_buffer_a`：判定为 `rapeseed`
+- `score > threshold + threshold_buffer_b`：判定为 `non_rapeseed`
+- 中间区间：判定为 `uncertain`
+
 ## 📥 请求参数
 
 两个版本使用相同的请求格式：
